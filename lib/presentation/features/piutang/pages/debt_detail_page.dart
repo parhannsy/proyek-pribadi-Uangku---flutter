@@ -4,12 +4,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:uangku/application/debt/debt_cubit.dart'; 
 import 'package:uangku/application/debt/debt_state.dart'; 
+import 'package:uangku/application/flow/arus_cubit.dart'; // Tambahkan ini
 import 'package:uangku/data/models/debt_model.dart'; 
 import 'package:uangku/presentation/features/piutang/widgets/add_payment_form_modal.dart';
+import 'package:uangku/presentation/features/piutang/pages/payment_receipt_page.dart'; // Tambahkan ini
 import 'package:uangku/presentation/shared/theme/app_colors.dart';
-import 'package:uangku/presentation/shared/widgets/animated_slider.dart'; // Import animasi
+import 'package:uangku/presentation/shared/widgets/animated_slider.dart';
 import 'package:uangku/utils/number_formatter.dart';
 import 'package:intl/intl.dart'; 
+import 'package:collection/collection.dart'; // Gunakan ini untuk firstWhereOrNull
 
 class DebtDetailPage extends StatelessWidget {
   final DebtModel debt; 
@@ -38,13 +41,38 @@ class DebtDetailPage extends StatelessWidget {
     );
   }
 
+  // Fungsi navigasi ke bukti bayar
+  void _navigateToReceipt(BuildContext context, DebtModel debt, int tenorNumber) {
+    final aruses = context.read<ArusCubit>().state.aruses;
+    
+    // Cari transaksi yang punya debtId ini DAN deskripsinya mengandung angka tenor tersebut
+    final transaction = aruses.firstWhereOrNull(
+      (a) => a.debtId == debt.id && a.description!.contains('Bulan: $tenorNumber')
+    );
+
+    if (transaction != null) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => PaymentReceiptPage(
+            transaction: transaction,
+            tenorNumber: tenorNumber,
+          ),
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Bukti pembayaran tidak ditemukan di riwayat Arus.')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final dateFormat = DateFormat('d MMMM yyyy', 'id_ID'); 
     
     return BlocBuilder<DebtCubit, DebtState>(
       builder: (context, state) {
-        // Sinkronisasi Data terbaru dari state
         DebtModel currentDebt = debt;
         if (state is DebtLoadSuccess) {
           currentDebt = state.debts.firstWhere(
@@ -75,7 +103,6 @@ class DebtDetailPage extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // --- Card Informasi Utama (Index 0) ---
                 AnimatedSlider(
                   index: 0,
                   child: _buildSummaryCard(currentDebt, totalDebtAmount),
@@ -83,7 +110,6 @@ class DebtDetailPage extends StatelessWidget {
                 
                 const SizedBox(height: 24),
                 
-                // --- Label Riwayat (Index 1) ---
                 const AnimatedSlider(
                   index: 1,
                   child: Text(
@@ -97,7 +123,6 @@ class DebtDetailPage extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
                 
-                // --- List Tenor (Index 2 ke atas) ---
                 ListView.builder(
                   shrinkWrap: true,
                   padding: EdgeInsets.zero,
@@ -108,7 +133,7 @@ class DebtDetailPage extends StatelessWidget {
                     final isPaid = tenorNumber <= (currentDebt.totalTenor - currentDebt.remainingTenor);
                     
                     return AnimatedSlider(
-                      index: index + 2, // Staggered delay
+                      index: index + 2,
                       child: _buildPaymentItem(
                         context: context,
                         currentDebt: currentDebt,
@@ -128,8 +153,6 @@ class DebtDetailPage extends StatelessWidget {
       },
     );
   }
-
-  // --- Widget Components ---
 
   Widget _buildSummaryCard(DebtModel debt, int totalAmount) {
     return Container(
@@ -219,11 +242,13 @@ class DebtDetailPage extends StatelessWidget {
             ),
           ),
           ElevatedButton(
-            onPressed: (isNextToPay && !currentDebt.isCompleted) 
-                ? () => _showPaymentModal(context, tenorNumber, currentDebt) 
-                : null,
+            onPressed: isPaid 
+                ? () => _navigateToReceipt(context, currentDebt, tenorNumber)
+                : (isNextToPay && !currentDebt.isCompleted) 
+                    ? () => _showPaymentModal(context, tenorNumber, currentDebt) 
+                    : null,
             style: ElevatedButton.styleFrom(
-              backgroundColor: isPaid ? AppColors.positiveGreen.withOpacity(0.2) : AppColors.accentGold,
+              backgroundColor: isPaid ? AppColors.positiveGreen.withOpacity(0.15) : AppColors.accentGold,
               disabledBackgroundColor: Colors.white.withOpacity(0.05),
               foregroundColor: isPaid ? AppColors.positiveGreen : AppColors.primaryBackground,
               elevation: 0,
@@ -231,7 +256,7 @@ class DebtDetailPage extends StatelessWidget {
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             ),
             child: Text(
-              isPaid ? 'Lunas' : 'Bayar',
+              isPaid ? 'Bukti Bayar' : 'Bayar',
               style: const TextStyle(fontWeight: FontWeight.bold),
             ),
           ),
