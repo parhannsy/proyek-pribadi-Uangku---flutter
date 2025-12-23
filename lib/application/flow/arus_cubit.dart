@@ -107,4 +107,53 @@ class ArusCubit extends Cubit<ArusState> {
       year: selectedDate.year,
     );
   }
+
+  //handler filter data chart dashboard
+  Future<void> loadFilteredArus(String filter) async {
+  emit(state.copyWith(isLoading: true));
+  final now = DateTime.now();
+  DateTime start;
+  DateTime end = now;
+
+  try {
+    List<Arus> results;
+    if (filter == 'Hari ini') {
+      start = DateTime(now.year, now.month, now.day);
+      results = await _repository.getArusByDateRange(
+        start.millisecondsSinceEpoch, 
+        end.millisecondsSinceEpoch
+      );
+    } else if (filter == 'Minggu ini') {
+      start = now.subtract(const Duration(days: 7));
+      results = await _repository.getArusByDateRange(
+        start.millisecondsSinceEpoch, 
+        end.millisecondsSinceEpoch
+      );
+    } else if (filter == 'Semua') {
+      // 6 Bulan kebelakang
+      start = DateTime(now.year, now.month - 6, now.day);
+      results = await _repository.getArusByDateRange(
+        start.millisecondsSinceEpoch, 
+        end.millisecondsSinceEpoch
+      );
+    } else {
+      // Default: Bulan ini (Logika initialize kamu)
+      await initialize();
+      return;
+    }
+
+    // Hitung total manual dari hasil range untuk update summary singkat
+    final income = results.where((e) => e.type == ArusType.income).fold(0.0, (s, e) => s + e.amount);
+    final expense = results.where((e) => e.type == ArusType.expense).fold(0.0, (s, e) => s + e.amount);
+
+    emit(state.copyWith(
+      aruses: results,
+      totalIncome: income,
+      totalExpense: expense,
+      isLoading: false,
+    ));
+  } catch (e) {
+    emit(state.copyWith(isLoading: false, failureMessage: e.toString()));
+  }
+}
 }
