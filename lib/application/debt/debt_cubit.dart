@@ -63,31 +63,35 @@ class DebtCubit extends Cubit<DebtState> {
 
       final existingDebt = allDebts[debtIndex];
       
+      // LOGIKA: Hitung sisa tenor baru
       final int newRemaining = (existingDebt.remainingTenor - selectedTenors.length).clamp(0, existingDebt.totalTenor);
+      
       final updatedDebt = existingDebt.copyWith(
         remainingTenor: newRemaining,
         isCompleted: newRemaining == 0,
       );
 
       final double totalAmount = (existingDebt.amountPerTenor * selectedTenors.length).toDouble();
-      final String tenorDescription = selectedTenors.join(', ');
       
-      // PERBAIKAN DI SINI:
+      // KOREKSI MENTOR: 
+      // Gunakan format join tanpa spasi agar parsing Regex di UI lebih stabil.
+      // Format: [T:1,2,3]
+      final String tenorTags = selectedTenors.join(',');
+      
       final newArus = Arus(
         type: ArusType.expense,
         category: 'Tagihan',
         amount: totalAmount,
-        description: 'Bayar cicilan ${existingDebt.borrower} (Bulan: $tenorDescription)',
-        // 1. Masukkan Objek DateTime langsung, bukan .millisecondsSinceEpoch
+        // DESKRIPSI: Menggabungkan info user-friendly dengan tagging mesin
+        description: 'Bayar cicilan ${existingDebt.borrower} [T:$tenorTags]', 
         timestamp: paymentDate, 
         isRecurring: false,
-        // 2. Hubungkan kembali debtId agar sinkronisasi Arus & Hutang tetap jalan
         debtId: debtId, 
         imagePath: imagePath,
-        // 3. needId dibiarkan null karena ini transaksi hutang, bukan kebutuhan jatah
         needId: null, 
       );
 
+      // Eksekusi Simpan
       await _repository.updateDebt(updatedDebt);
       await _arusRepository.createArus(newArus); 
 

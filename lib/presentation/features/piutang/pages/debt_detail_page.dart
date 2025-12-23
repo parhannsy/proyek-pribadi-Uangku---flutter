@@ -4,15 +4,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:uangku/application/debt/debt_cubit.dart'; 
 import 'package:uangku/application/debt/debt_state.dart'; 
-import 'package:uangku/application/flow/arus_cubit.dart'; // Tambahkan ini
+import 'package:uangku/application/flow/arus_cubit.dart'; 
 import 'package:uangku/data/models/debt_model.dart'; 
 import 'package:uangku/presentation/features/piutang/widgets/add_payment_form_modal.dart';
-import 'package:uangku/presentation/features/piutang/pages/payment_receipt_page.dart'; // Tambahkan ini
+import 'package:uangku/presentation/features/piutang/pages/payment_receipt_page.dart'; 
 import 'package:uangku/presentation/shared/theme/app_colors.dart';
 import 'package:uangku/presentation/shared/widgets/animated_slider.dart';
 import 'package:uangku/utils/number_formatter.dart';
 import 'package:intl/intl.dart'; 
-import 'package:collection/collection.dart'; // Gunakan ini untuk firstWhereOrNull
+import 'package:collection/collection.dart'; 
 
 class DebtDetailPage extends StatelessWidget {
   final DebtModel debt; 
@@ -41,14 +41,32 @@ class DebtDetailPage extends StatelessWidget {
     );
   }
 
-  // Fungsi navigasi ke bukti bayar
+  /// REVISI FINAL: Fungsi navigasi dengan Regex Matching
   void _navigateToReceipt(BuildContext context, DebtModel debt, int tenorNumber) {
     final aruses = context.read<ArusCubit>().state.aruses;
     
-    // Cari transaksi yang punya debtId ini DAN deskripsinya mengandung angka tenor tersebut
-    final transaction = aruses.firstWhereOrNull(
-      (a) => a.debtId == debt.id && a.description!.contains('Bulan: $tenorNumber')
-    );
+    // MENTOR NOTE: 
+    // Kita mencari transaksi yang mengandung tag [T:1,2,3]
+    final transaction = aruses.firstWhereOrNull((a) {
+      if (a.debtId != debt.id) return false;
+      
+      final description = a.description ?? '';
+      
+      // Pola 1: Format Baru [T:1,2,3]
+      final match = RegExp(r'\[T:(.*?)\]').firstMatch(description);
+      if (match != null) {
+        final tenorsString = match.group(1) ?? '';
+        final listTenor = tenorsString.split(',');
+        return listTenor.contains(tenorNumber.toString());
+      }
+
+      // Pola 2: Fallback untuk data lama (Bulan: 1)
+      if (description.contains('Bulan: $tenorNumber')) {
+        return true;
+      }
+      
+      return false;
+    });
 
     if (transaction != null) {
       Navigator.push(
@@ -62,7 +80,10 @@ class DebtDetailPage extends StatelessWidget {
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Bukti pembayaran tidak ditemukan di riwayat Arus.')),
+        const SnackBar(
+          content: Text('Bukti pembayaran tidak ditemukan. Pastikan data Arus tersedia.'),
+          backgroundColor: AppColors.negativeRed,
+        ),
       );
     }
   }
