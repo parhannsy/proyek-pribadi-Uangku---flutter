@@ -1,5 +1,7 @@
 // lib/presentation/features/dashboard/widgets/balance_summary_card.dart
 
+// ignore_for_file: deprecated_member_use
+
 import 'package:flutter/material.dart';
 import 'package:uangku/presentation/shared/theme/app_colors.dart';
 

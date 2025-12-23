@@ -1,5 +1,7 @@
 // lib/presentation/features/arus/pages/arus_keuangan_page.dart
 
+// ignore_for_file: deprecated_member_use, camel_case_types
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';

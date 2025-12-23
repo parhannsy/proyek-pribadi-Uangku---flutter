@@ -80,7 +80,6 @@ class DatabaseService {
           color_value INTEGER NOT NULL
         );
       ''');
-      print("Database Migrated to V6: Column check and table recreation success");
     }
   }
 }

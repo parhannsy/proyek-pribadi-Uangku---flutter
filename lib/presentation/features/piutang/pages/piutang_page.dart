@@ -11,6 +11,9 @@ import 'package:uangku/presentation/features/piutang/widgets/add_debt_form_modal
 import 'package:uangku/presentation/shared/theme/app_colors.dart';
 import 'package:uangku/presentation/shared/widgets/animated_slider.dart';
 
+// MENTOR NOTE: Import sudah diaktifkan
+import 'package:uangku/presentation/features/piutang/pages/debt_history_page.dart';
+
 class PiutangPage extends StatefulWidget {
   const PiutangPage({super.key}); 
 
@@ -36,8 +39,8 @@ class _PiutangPageState extends State<PiutangPage> {
       context: context,
       isScrollControlled: true, 
       backgroundColor: AppColors.primaryBackground, 
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
       ),
       builder: (_) => BlocProvider.value(
         value: debtCubit,
@@ -64,9 +67,10 @@ class _PiutangPageState extends State<PiutangPage> {
           }
         },
         builder: (context, state) {
+          // MENTOR LOGIC: Kita hanya menampilkan hutang yang BELUM lunas di halaman utama
           List<DebtModel> debts = [];
           if (state is DebtLoadSuccess) {
-            debts = state.debts;
+            debts = state.debts.where((d) => !d.isCompleted).toList();
           }
 
           return CustomScrollView( 
@@ -82,7 +86,7 @@ class _PiutangPageState extends State<PiutangPage> {
                 )
               else if (debts.isEmpty)
                 SliverFillRemaining(
-                  hasScrollBody: false, // Menghindari overflow di dalam fill remaining
+                  hasScrollBody: false,
                   child: _buildEmptyStateContent(context),
                 )
               else
@@ -109,12 +113,37 @@ class _PiutangPageState extends State<PiutangPage> {
             index: 0,
             child: Text('Piutang', style: TextStyle(color: AppColors.textPrimary, fontSize: 24, fontWeight: FontWeight.bold)),
           ),
-          AnimatedSlider(
-            index: 0,
-            child: IconButton(
-              onPressed: () => context.read<DebtCubit>().loadActiveDebts(), 
-              icon: const Icon(Icons.refresh, color: AppColors.accentGold, size: 28),
-            ),
+          Row(
+            children: [
+              // TOMBOL HISTORY - SEKARANG AKTIF
+              AnimatedSlider(
+                index: 0,
+                child: IconButton(
+                  tooltip: 'Riwayat Hutang Lunas',
+                  onPressed: () {
+                    final debtCubit = context.read<DebtCubit>();
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => BlocProvider.value(
+                          value: debtCubit,
+                          child: const DebtHistoryPage(),
+                        ),
+                      ),
+                    );
+                  }, 
+                  icon: const Icon(Icons.history_rounded, color: AppColors.accentGold, size: 28),
+                ),
+              ),
+              // TOMBOL REFRESH
+              AnimatedSlider(
+                index: 0,
+                child: IconButton(
+                  onPressed: () => context.read<DebtCubit>().loadActiveDebts(), 
+                  icon: const Icon(Icons.refresh, color: AppColors.accentGold, size: 28),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -122,6 +151,8 @@ class _PiutangPageState extends State<PiutangPage> {
   }
 
   List<Widget> _buildAnimatedItems(BuildContext context, List<DebtModel> debts) {
+    // Ringkasan tetap dihitung dari semua hutang (opsional, tergantung keinginan user)
+    // Tapi di sini saya hitung berdasarkan list 'debts' yang sudah difilter (Hutang Aktif)
     final totalDebt = debts.fold<double>(0, (sum, debt) => sum + (debt.totalTenor * debt.amountPerTenor));
     final remainingAmount = debts.fold<double>(0, (sum, debt) => sum + (debt.remainingTenor * debt.amountPerTenor));
     final paidAmount = totalDebt - remainingAmount;
@@ -135,7 +166,7 @@ class _PiutangPageState extends State<PiutangPage> {
       const SizedBox(height: 24),
       const Padding(
         padding: EdgeInsets.symmetric(horizontal: 16.0),
-        child: Text('Daftar hutang anda', style: TextStyle(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.bold)),
+        child: Text('Daftar hutang aktif', style: TextStyle(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.bold)),
       ),
       const SizedBox(height: 12),
       ...debts.map((debt) => Padding(
@@ -156,7 +187,6 @@ class _PiutangPageState extends State<PiutangPage> {
     return items.asMap().entries.map((e) => AnimatedSlider(index: e.key + 1, child: e.value)).toList();
   }
 
-  // REVISI: Empty State dengan Staggered Animation
   Widget _buildEmptyStateContent(BuildContext context) {
     final List<Widget> emptyItems = [
       const Icon(Icons.account_balance_wallet_outlined, size: 80, color: AppColors.textSecondary),
@@ -188,7 +218,7 @@ class _PiutangPageState extends State<PiutangPage> {
         mainAxisAlignment: MainAxisAlignment.center,
         children: emptyItems.asMap().entries.map((e) {
           return AnimatedSlider(
-            index: e.key + 1, // Berikan index agar muncul satu per satu
+            index: e.key + 1, 
             child: e.value,
           );
         }).toList(),

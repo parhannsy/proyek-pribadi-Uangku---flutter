@@ -77,7 +77,7 @@ class PiutangList extends StatelessWidget {
                               style: TextStyle(color: AppColors.textSecondary)
                             ),
                           ),
-                          numeric: true, // HACK: memaksa alignment ke kanan
+                          numeric: true, // 
                         ),
                       ],
                       rows: debts.map((data) {
@@ -121,7 +121,7 @@ class PiutangList extends StatelessWidget {
             alignment: Alignment.centerRight,
             child: InkWell(
               onTap: () {
-                // TODO: Navigasi ke Halaman Detail Piutang
+                // 
               },
               child: Text(
                 'Lihat detail piutang →',

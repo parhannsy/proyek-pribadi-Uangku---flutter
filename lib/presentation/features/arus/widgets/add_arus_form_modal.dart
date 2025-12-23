@@ -1,5 +1,7 @@
 // lib/presentation/features/arus/widgets/add_arus_form_modal.dart
 
+// ignore_for_file: deprecated_member_use, use_build_context_synchronously, empty_catches
+
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';

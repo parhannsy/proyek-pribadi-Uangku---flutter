@@ -20,6 +20,7 @@ class DebtLoading extends DebtState {}
 
 // 2. STATE SUKSES MEMUAT DATA
 class DebtLoadSuccess extends DebtState {
+  @override
   final List<DebtModel> debts;
   
   const DebtLoadSuccess({required this.debts});

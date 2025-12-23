@@ -1,5 +1,7 @@
 // lib/presentation/features/piutang/debt_detail_page.dart
 
+// ignore_for_file: deprecated_member_use
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:uangku/application/debt/debt_cubit.dart'; 
@@ -41,18 +43,13 @@ class DebtDetailPage extends StatelessWidget {
     );
   }
 
-  /// REVISI FINAL: Fungsi navigasi dengan Regex Matching
   void _navigateToReceipt(BuildContext context, DebtModel debt, int tenorNumber) {
     final aruses = context.read<ArusCubit>().state.aruses;
     
-    // MENTOR NOTE: 
-    // Kita mencari transaksi yang mengandung tag [T:1,2,3]
     final transaction = aruses.firstWhereOrNull((a) {
       if (a.debtId != debt.id) return false;
-      
       final description = a.description ?? '';
       
-      // Pola 1: Format Baru [T:1,2,3]
       final match = RegExp(r'\[T:(.*?)\]').firstMatch(description);
       if (match != null) {
         final tenorsString = match.group(1) ?? '';
@@ -60,11 +57,9 @@ class DebtDetailPage extends StatelessWidget {
         return listTenor.contains(tenorNumber.toString());
       }
 
-      // Pola 2: Fallback untuk data lama (Bulan: 1)
       if (description.contains('Bulan: $tenorNumber')) {
         return true;
       }
-      
       return false;
     });
 
@@ -88,6 +83,18 @@ class DebtDetailPage extends StatelessWidget {
     }
   }
 
+  /// MENTOR LOGIC: Mencari tanggal transaksi terakhir untuk status "Rampung"
+  DateTime? _getCompletionDate(BuildContext context, String debtId) {
+    final aruses = context.read<ArusCubit>().state.aruses;
+    // Filter transaksi berdasarkan debtId, urutkan dari yang terbaru
+    final lastTransaction = aruses
+        .where((a) => a.debtId == debtId)
+        .sortedBy((a) => a.timestamp)
+        .lastOrNull;
+    
+    return lastTransaction?.timestamp;
+  }
+
   @override
   Widget build(BuildContext context) {
     final dateFormat = DateFormat('d MMMM yyyy', 'id_ID'); 
@@ -103,6 +110,9 @@ class DebtDetailPage extends StatelessWidget {
         }
 
         final totalDebtAmount = currentDebt.totalTenor * currentDebt.amountPerTenor;
+        final completionDate = currentDebt.isCompleted 
+            ? _getCompletionDate(context, currentDebt.id) 
+            : null;
         
         return Scaffold(
           backgroundColor: AppColors.primaryBackground,
@@ -126,7 +136,7 @@ class DebtDetailPage extends StatelessWidget {
               children: [
                 AnimatedSlider(
                   index: 0,
-                  child: _buildSummaryCard(currentDebt, totalDebtAmount),
+                  child: _buildSummaryCard(currentDebt, totalDebtAmount, dateFormat, completionDate),
                 ),
                 
                 const SizedBox(height: 24),
@@ -175,7 +185,7 @@ class DebtDetailPage extends StatelessWidget {
     );
   }
 
-  Widget _buildSummaryCard(DebtModel debt, int totalAmount) {
+  Widget _buildSummaryCard(DebtModel debt, int totalAmount, DateFormat dateFormat, DateTime? completionDate) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -186,9 +196,21 @@ class DebtDetailPage extends StatelessWidget {
       child: Column(
         children: [
           _buildDetailRow('Tujuan', debt.purpose),
+          // REVISI: Tambahkan tanggal pinjam
+          _buildDetailRow('Tanggal Pinjam', dateFormat.format(debt.dateBorrowed)),
           _buildDetailRow('Total Pinjaman', NumberFormatter.formatRupiah(totalAmount)),
           _buildDetailRow('Cicilan / Bulan', NumberFormatter.formatRupiah(debt.amountPerTenor)),
-          _buildDetailRow('Sisa Tenor', '${debt.remainingTenor} bulan lagi'),
+          
+          // REVISI: Logika dinamis untuk Sisa Tenor vs Rampung Pada
+          if (debt.isCompleted)
+            _buildDetailRow(
+              'Rampung Pada', 
+              completionDate != null ? dateFormat.format(completionDate) : '-',
+              valueColor: AppColors.positiveGreen,
+            )
+          else
+            _buildDetailRow('Sisa Tenor', '${debt.remainingTenor} bulan lagi'),
+
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 8.0),
             child: Divider(color: Colors.white10, thickness: 1),

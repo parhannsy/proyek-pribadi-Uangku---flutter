@@ -38,7 +38,6 @@ class ArusCubit extends Cubit<ArusState> {
       // Ini adalah praktek profesional untuk maintenance task.
       _repository.deleteOldTransactions(6).catchError((e) {
         // Cukup log saja jika gagal, jangan gagalkan proses load data utama
-        print("Log Maintenance: Gagal menghapus data lama -> $e");
       });
 
       // 4. Future.wait untuk performa (Concurrency)

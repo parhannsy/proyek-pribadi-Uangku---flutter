@@ -14,10 +14,12 @@ class DebtCubit extends Cubit<DebtState> {
 
   DebtCubit(this._repository, this._arusRepository) : super(DebtInitial());
 
+  // MENTOR REVISION: Ganti getActiveDebts menjadi getAllDebts
+  // Agar state mengandung SEMUA data (aktif & lunas) untuk kebutuhan filtering di UI.
   Future<void> loadActiveDebts() async {
     try {
       emit(DebtLoading());
-      final debts = await _repository.getActiveDebts();
+      final debts = await _repository.getAllDebts(); // AMBIL SEMUA
       emit(DebtLoadSuccess(debts: debts));
     } catch (e) {
       emit(DebtLoadFailure(message: "Gagal memuat data: ${e.toString()}"));
@@ -29,7 +31,7 @@ class DebtCubit extends Cubit<DebtState> {
     try {
       emit(DebtOperationInProgress());
       await _repository.addDebt(debt);
-      final updatedList = await _repository.getActiveDebts();
+      final updatedList = await _repository.getAllDebts(); // AMBIL SEMUA
       emit(DebtLoadSuccess(debts: updatedList));
       emit(const DebtOperationSuccess(message: 'Data hutang berhasil ditambahkan.')); 
     } catch (e) {
@@ -56,14 +58,14 @@ class DebtCubit extends Cubit<DebtState> {
     emit(DebtOperationInProgress());
     
     try {
-      final allDebts = await _repository.getActiveDebts();
+      // Ambil data terbaru dari database
+      final allDebts = await _repository.getAllDebts(); 
       final debtIndex = allDebts.indexWhere((d) => d.id == debtId);
       
       if (debtIndex == -1) throw Exception('Data hutang tidak ditemukan.');
 
       final existingDebt = allDebts[debtIndex];
       
-      // LOGIKA: Hitung sisa tenor baru
       final int newRemaining = (existingDebt.remainingTenor - selectedTenors.length).clamp(0, existingDebt.totalTenor);
       
       final updatedDebt = existingDebt.copyWith(
@@ -72,17 +74,12 @@ class DebtCubit extends Cubit<DebtState> {
       );
 
       final double totalAmount = (existingDebt.amountPerTenor * selectedTenors.length).toDouble();
-      
-      // KOREKSI MENTOR: 
-      // Gunakan format join tanpa spasi agar parsing Regex di UI lebih stabil.
-      // Format: [T:1,2,3]
       final String tenorTags = selectedTenors.join(',');
       
       final newArus = Arus(
         type: ArusType.expense,
         category: 'Tagihan',
         amount: totalAmount,
-        // DESKRIPSI: Menggabungkan info user-friendly dengan tagging mesin
         description: 'Bayar cicilan ${existingDebt.borrower} [T:$tenorTags]', 
         timestamp: paymentDate, 
         isRecurring: false,
@@ -95,7 +92,8 @@ class DebtCubit extends Cubit<DebtState> {
       await _repository.updateDebt(updatedDebt);
       await _arusRepository.createArus(newArus); 
 
-      final updatedList = await _repository.getActiveDebts();
+      // MENTOR REVISION: Refresh dengan getAllDebts agar data lunas tetap masuk ke state
+      final updatedList = await _repository.getAllDebts();
       
       emit(DebtLoadSuccess(debts: updatedList));
       emit(const DebtOperationSuccess(message: 'Pembayaran tenor berhasil dicatat!'));
@@ -114,7 +112,8 @@ class DebtCubit extends Cubit<DebtState> {
       emit(DebtOperationInProgress());
       await _repository.completeDebt(debtId); 
       
-      final updatedList = await _repository.getActiveDebts();
+      // MENTOR REVISION: Selalu gunakan getAllDebts
+      final updatedList = await _repository.getAllDebts();
       emit(DebtLoadSuccess(debts: updatedList));
       emit(const DebtOperationSuccess(message: 'Hutang telah ditandai sebagai lunas.')); 
     } catch (e) {

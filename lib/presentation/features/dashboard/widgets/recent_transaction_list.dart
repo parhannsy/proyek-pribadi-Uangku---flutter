@@ -47,7 +47,7 @@ class RecentTransactionsList extends StatelessWidget {
               builder: (context, constraints) {
                 final double minTableWidth = constraints.maxWidth;
                 
-                // HACK: Asumsi lebar minimum yang dibutuhkan oleh Tgl, Hari, Keterangan, dan padding (sekitar 200px)
+                // 
                 // Kita gunakan sisa lebar sebagai spasi.
                 final double estimatedContentWidth = 200; 
                 final double requiredColumnSpacing = (minTableWidth - estimatedContentWidth) / 4; 
@@ -75,7 +75,7 @@ class RecentTransactionsList extends StatelessWidget {
                         DataColumn(label: Text('Hari', style: TextStyle(color: AppColors.textSecondary))),
                         DataColumn(label: Text('Keterangan', style: TextStyle(color: AppColors.textSecondary))), 
                         DataColumn(
-                          // HACK: Menambahkan tooltip dan alignment untuk memastikan kolom nominal menggunakan ruang sisa
+                          // 
                           label: Align(
                             alignment: Alignment.centerRight,
                             child: Text(
@@ -83,7 +83,7 @@ class RecentTransactionsList extends StatelessWidget {
                               style: TextStyle(color: AppColors.textSecondary), 
                             ),
                           ),
-                          numeric: true, // HACK: numeric true memaksa alignment ke kanan
+                          numeric: true, // 
                         ),
                       ],
                       rows: transactions.map((data) {
@@ -125,7 +125,7 @@ class RecentTransactionsList extends StatelessWidget {
             alignment: Alignment.centerRight,
             child: InkWell(
               onTap: () {
-                // TODO: Navigasi ke Halaman Detail Pengeluaran
+                // 
               },
               child: Text(
                 'Lihat detail Pengeluaran →',

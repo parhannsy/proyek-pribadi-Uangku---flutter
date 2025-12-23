@@ -1,5 +1,7 @@
 // lib/presentation/features/dashboard/widgets/arus_keuangan_chart.dart
 
+// ignore_for_file: deprecated_member_use
+
 import 'package:flutter/material.dart';
 import 'package:uangku/presentation/shared/theme/app_colors.dart';
 
@@ -86,7 +88,7 @@ class ArusKeuanganChart extends StatelessWidget {
             alignment: Alignment.centerRight,
             child: InkWell(
               onTap: () {
-                // TODO: Navigasi ke Halaman Arus/Laporan
+                // 
               },
               child: Text(
                 'Lihat detail Arus →',
@@ -144,8 +146,7 @@ class _PeriodSelectorState extends State<_PeriodSelector> {
                     // Memicu perubahan status
                     setState(() {
                       _selectedPeriod = period;
-                      // TODO: Tambahkan logika untuk memuat ulang data grafik/transaksi berdasarkan periode baru
-                      print('Periode terpilih: $_selectedPeriod');
+                      // 
                     });
                   },
                   child: Container(

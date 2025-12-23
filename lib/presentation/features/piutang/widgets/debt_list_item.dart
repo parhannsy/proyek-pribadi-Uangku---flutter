@@ -1,10 +1,10 @@
 // lib/presentation/features/piutang/widgets/debt_list_item.dart
 
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart'; // <<< WAJIB: Import Bloc
-import 'package:uangku/application/debt/debt_cubit.dart'; // <<< WAJIB: Import Cubit
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:uangku/application/debt/debt_cubit.dart'; 
 import 'package:uangku/data/models/debt_model.dart'; 
-import 'package:uangku/presentation/features/piutang/pages/debt_detail_page.dart'; // Pastikan path benar
+import 'package:uangku/presentation/features/piutang/pages/debt_detail_page.dart'; 
 import 'package:uangku/presentation/shared/theme/app_colors.dart';
 import 'package:uangku/utils/number_formatter.dart'; 
 
@@ -16,7 +16,6 @@ class DebtListItem extends StatelessWidget {
     required this.debt,
   });
 
-  // Helper untuk menghitung sisa hari hingga jatuh tempo
   String _getDueDateStatus(DateTime nextDueDate) {
     final now = DateTime.now();
     final difference = nextDueDate.difference(now);
@@ -30,54 +29,55 @@ class DebtListItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 1. Ambil instance Cubit yang sudah ada di scope atas
-    // Lakukan ini di luar onTap
-    final debtCubit = context.read<DebtCubit>(); // Ambil Cubit dari Provider Scope Induk
+    final debtCubit = context.read<DebtCubit>(); 
     
-    // 2. Data dari Model
     final DateTime nextDueDate = debt.nextDueDate;
     final String dueDateText = _getDueDateStatus(nextDueDate);
     
     final int remainingTenor = debt.remainingTenor;
     final int paidTenor = debt.totalTenor - remainingTenor;
     
-    // ... [Logika Status Jatuh Tempo lainnya tetap sama] ...
     final bool isDueToday = nextDueDate.day == DateTime.now().day && 
                             nextDueDate.month == DateTime.now().month && 
                             nextDueDate.year == DateTime.now().year;
     
     final bool isOverdue = nextDueDate.isBefore(DateTime.now().copyWith(hour: 0, minute: 0, second: 0));
-    final bool isNearDue = dueDateText.contains('5 hari'); // Contoh kriteria
 
+    // LOGIKA WARNA BADGE - DIKEMBALIKAN & DIPERBAIKI
     Color effectiveBadgeColor;
-    if (isOverdue) {
+    Color effectiveTextColor;
+    String finalLabel;
+
+    if (debt.isCompleted) {
+      effectiveBadgeColor = AppColors.positiveGreen.withOpacity(0.15);
+      effectiveTextColor = AppColors.positiveGreen;
+      finalLabel = 'LUNAS';
+    } else if (isOverdue) {
       effectiveBadgeColor = AppColors.negativeRed; 
+      effectiveTextColor = Colors.white;
+      finalLabel = isDueToday ? 'Hari Ini' : dueDateText;
     } else if (isDueToday) {
       effectiveBadgeColor = AppColors.accentGold; 
-    } else if (isNearDue) {
-      effectiveBadgeColor = AppColors.accentGold; 
+      effectiveTextColor = Colors.black;
+      finalLabel = 'Hari Ini';
     } else {
-      effectiveBadgeColor = AppColors.positiveGreen; 
+      // Status Normal: Menggunakan warna yang kontras dengan surface
+      effectiveBadgeColor = AppColors.accentGold.withOpacity(0.1); 
+      effectiveTextColor = AppColors.accentGold;
+      finalLabel = 'Jatuh tempo $dueDateText';
     }
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0),
       child: InkWell(
         onTap: () {
-          // Navigasi ke DebtDetailPage dan SALURKAN Cubit yang sudah ada
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (routeContext) {
-                // Bungkus DebtDetailPage dengan BlocProvider.value untuk 
-                // menyalurkan Cubit yang sudah ada (debtCubit) ke rute baru.
-                return BlocProvider.value(
-                  value: debtCubit, // Menyediakan instance Cubit yang sama
-                  child: DebtDetailPage(
-                    debt: debt, 
-                  ),
-                );
-              },
+              builder: (routeContext) => BlocProvider.value(
+                value: debtCubit,
+                child: DebtDetailPage(debt: debt),
+              ),
             ),
           );
         },
@@ -89,7 +89,7 @@ class DebtListItem extends StatelessWidget {
           ),
           child: Row(
             children: [
-              // Kolom Kiri: Detail Hutang
+              // Kolom Kiri: Info Utama
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -115,11 +115,11 @@ class DebtListItem extends StatelessWidget {
                 ),
               ),
 
-              // Kolom Kanan: Status Jatuh Tempo dan Tenor
+              // Kolom Kanan: Status & Tenor
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Badge Jatuh Tempo
+                  // Badge Jatuh Tempo / Lunas
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
@@ -127,13 +127,9 @@ class DebtListItem extends StatelessWidget {
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Text(
-                      isOverdue 
-                          ? dueDateText 
-                          : isDueToday
-                              ? 'Jatuh tempo hari ini'
-                              : 'Jatuh tempo dalam $dueDateText',
-                      style: const TextStyle(
-                        color: AppColors.primaryBackground,
+                      finalLabel,
+                      style: TextStyle(
+                        color: effectiveTextColor,
                         fontSize: 10,
                         fontWeight: FontWeight.bold,
                       ),
@@ -142,7 +138,7 @@ class DebtListItem extends StatelessWidget {
                   
                   const SizedBox(width: 8),
 
-                  // Tenor/Angsuran
+                  // Info Tenor
                   Text(
                     '$paidTenor/${debt.totalTenor}', 
                     style: const TextStyle(

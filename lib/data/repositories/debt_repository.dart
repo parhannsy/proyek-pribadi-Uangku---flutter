@@ -8,12 +8,11 @@ abstract class DebtRepository {
   
   /// Mengambil semua catatan hutang/piutang yang aktif (belum lunas).
   ///
-  /// @return Future List<DebtModel> yang berisi semua hutang yang tersisa.
+
   Future<List<DebtModel>> getActiveDebts();
 
   /// Mengambil semua catatan hutang/piutang, termasuk yang sudah lunas.
   ///
-  /// @return Future List<DebtModel> yang berisi semua catatan (riwayat).
   Future<List<DebtModel>> getAllDebts();
 
   /// Menyimpan catatan hutang/piutang baru ke penyimpanan data.

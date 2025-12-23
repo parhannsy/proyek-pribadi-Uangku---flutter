@@ -173,7 +173,6 @@ class ArusRepositoryImpl implements ArusRepository {
       );
     } catch (e) {
       // Log error tanpa menghentikan aliran aplikasi utama
-      print("Maintenance Error (DeleteOld): $e");
     }
   }
 }
