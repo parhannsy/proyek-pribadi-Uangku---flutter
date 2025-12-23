@@ -1,114 +1,115 @@
 // lib/presentation/features/dashboard/widgets/balance_summary_card.dart
 
-// ignore_for_file: deprecated_member_use
-
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:uangku/application/debt/debt_state.dart';
+import 'package:uangku/application/flow/arus_cubit.dart';
+import 'package:uangku/application/debt/debt_cubit.dart';
+import 'package:uangku/application/needs/needs_cubit.dart';
+import 'package:uangku/application/needs/needs_state.dart';
 import 'package:uangku/presentation/shared/theme/app_colors.dart';
+import 'package:uangku/utils/number_formatter.dart';
 
 class BalanceSummaryCard extends StatelessWidget {
   const BalanceSummaryCard({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // DATA DUMMY
-    const String totalBalance = 'Rp 1.234.567';
-    const String statusKeuangan = '-Rp 1.234.567';
-    const String uangDibutuhkan = 'Rp 1.234.567';
+    final arusState = context.watch<ArusCubit>().state;
+    final debtState = context.watch<DebtCubit>().state;
+    final needsState = context.watch<NeedsCubit>().state;
+
+    final now = DateTime.now();
+
+    // 1. UANG TERSEDIA (Saldo Riil saat ini)
+    final double uangTersedia = arusState.totalIncome - arusState.totalExpense;
+
+    // 2. UANG DIBUTUHKAN (Sisa Anggaran Needs + Cicilan Hutang Bulan Ini)
+    
+    // --- Logika Needs Dinamis ---
+    double sisaKebutuhanBulanIni = 0;
+    if (needsState is NeedsLoadSuccess) {
+      // MENTOR LOGIC: Gunakan remainingAmount (Budget - Used) 
+      // Jika used sudah melebihi budget, kita anggap 0 (tidak butuh uang lagi karena sudah habis/over)
+      sisaKebutuhanBulanIni = needsState.needs.fold(0, (sum, item) {
+        return sum + (item.remainingAmount > 0 ? item.remainingAmount : 0);
+      });
+    }
+
+    // --- Logika Debt Dinamis (Hanya Bulan Ini) ---
+    double cicilanHutangBulanIni = 0;
+    if (debtState is DebtLoadSuccess) {
+      cicilanHutangBulanIni = debtState.debts.where((debt) {
+        // MENTOR LOGIC: 
+        // 1. Hutang belum lunas
+        // 2. Jatuh temponya adalah bulan ini (cek berdasarkan dueDateDay dan current month)
+        bool isNotCompleted = !debt.isCompleted;
+        bool isDueThisMonth = debt.nextDueDate.month == now.month && 
+                             debt.nextDueDate.year == now.year;
+        
+        return isNotCompleted && isDueThisMonth;
+      }).fold(0, (sum, debt) => sum + debt.amountPerTenor);
+    }
+
+    final double uangDibutuhkan = sisaKebutuhanBulanIni + cicilanHutangBulanIni;
+
+    // 3. STATUS KEUANGAN
+    final double statusKeuangan = uangTersedia - uangDibutuhkan;
+    final bool isSurplus = statusKeuangan >= 0;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0),
       child: Column(
-        // Tetap start (rata kiri) agar judul "Uang tersedia saat ini" tetap rata kiri
-        crossAxisAlignment: CrossAxisAlignment.start, 
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // -------------------------------------------------------------
-          // BAGIAN 1: SALDO UTAMA (Uang tersedia saat ini)
-          // -------------------------------------------------------------
-          
           Text(
             'Uang tersedia saat ini',
             style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
           ),
           const SizedBox(height: 4),
-
           Text(
-            totalBalance,
-            style: TextStyle(
+            NumberFormatter.formatRupiah(uangTersedia.toInt()),
+            style: const TextStyle(
               color: AppColors.accentGold,
               fontSize: 32,
               fontWeight: FontWeight.w900,
             ),
           ),
-
-          const SizedBox(height: 16), 
-
-          // -------------------------------------------------------------
-          // BAGIAN 2: DETAIL RINGKASAN (Status & Kebutuhan) - DI DALAM CONTAINER
-          // -------------------------------------------------------------
+          const SizedBox(height: 16),
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: AppColors.surfaceColor,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.white.withOpacity(0.05)),
             ),
             child: Row(
               children: [
-                // Status Keuangan
                 Expanded(
                   child: Column(
-                    // PERUBAHAN: Mengubah CrossAxisAlignment.start menjadi CrossAxisAlignment.center
-                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
+                      const Text('Status keuangan', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                      const SizedBox(height: 4),
                       Text(
-                        'Status keuangan',
-                        style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
-                        // PERUBAHAN: Menambahkan textAlign.center
-                        textAlign: TextAlign.center,
-                      ),
-                      Text(
-                        statusKeuangan,
+                        "${isSurplus ? '+' : ''}${NumberFormatter.formatRupiah(statusKeuangan.toInt())}",
                         style: TextStyle(
-                          color: AppColors.negativeRed,
-                          fontSize: 16,
+                          color: isSurplus ? AppColors.positiveGreen : AppColors.negativeRed,
+                          fontSize: 15,
                           fontWeight: FontWeight.bold,
                         ),
-                        // PERUBAHAN: Menambahkan textAlign.center
-                        textAlign: TextAlign.center,
                       ),
                     ],
                   ),
                 ),
-                
-                // Divider Vertikal
-                Container(
-                  height: 40, 
-                  width: 1, 
-                  color: AppColors.textSecondary.withOpacity(0.3)
-                ),
-                
-                const SizedBox(width: 8),
-                
-                // Uang Dibutuhkan
+                Container(height: 30, width: 1, color: Colors.white10),
                 Expanded(
                   child: Column(
-                    // PERUBAHAN: Mengubah CrossAxisAlignment.start menjadi CrossAxisAlignment.center
-                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
+                      const Text('Uang dibutuhkan', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                      const SizedBox(height: 4),
                       Text(
-                        'uang dibutuhkan',
-                        style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
-                        // PERUBAHAN: Menambahkan textAlign.center
-                        textAlign: TextAlign.center,
-                      ),
-                      Text(
-                        uangDibutuhkan,
-                        style: TextStyle(
-                          color: AppColors.textPrimary,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                        // PERUBAHAN: Menambahkan textAlign.center
-                        textAlign: TextAlign.center,
+                        NumberFormatter.formatRupiah(uangDibutuhkan.toInt()),
+                        style: const TextStyle(color: AppColors.textPrimary, fontSize: 15, fontWeight: FontWeight.bold),
                       ),
                     ],
                   ),
