@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:intl/intl.dart'; 
 import 'package:uangku/application/debt/debt_cubit.dart'; 
 import 'package:uangku/data/models/debt_model.dart'; 
 import 'package:uangku/presentation/features/piutang/pages/debt_detail_page.dart'; 
@@ -19,72 +20,87 @@ class DebtListItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final debtCubit = context.read<DebtCubit>(); 
-    
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-    final dueDate = debt.currentMonthDueDate;
-    final difference = dueDate.difference(today).inDays;
-
-    final bool isDueToday = difference == 0;
-    final bool isOverdue = difference < 0;
     
-    // Logika Filter Kotak Merah: Muncul jika keterlambatan > 7 hari
-    final List<int> allOverdue = debt.overdueTenorIndices;
-    final List<int> displayOverdueBoxes = allOverdue.where((tenorIndex) {
-      DateTime tenorDate = DateTime(debt.dateBorrowed.year, debt.dateBorrowed.month + tenorIndex, debt.dueDateDay);
-      return today.difference(tenorDate).inDays > 7;
-    }).toList();
-
-    Color effectiveBadgeColor;
-    Color effectiveTextColor;
-    String finalLabel;
-
-    if (debt.isCompleted) {
-      effectiveBadgeColor = AppColors.positiveGreen.withOpacity(0.15);
-      effectiveTextColor = AppColors.positiveGreen;
-      finalLabel = 'LUNAS';
-    } 
-    // Status Terlambat (Hanya tampil di badge jika <= 7 hari)
-    else if (isOverdue && difference.abs() <= 7) {
-      effectiveBadgeColor = AppColors.negativeRed; 
-      effectiveTextColor = Colors.white;
-      finalLabel = 'Terlambat ${difference.abs()} hari';
-    } 
-    else if (isDueToday) {
-      effectiveBadgeColor = AppColors.accentGold; 
-      effectiveTextColor = Colors.black;
-      finalLabel = 'Hari Ini';
-    } else if (difference > 0 && difference <= 7) {
-      effectiveBadgeColor = AppColors.accentGold.withOpacity(0.1); 
-      effectiveTextColor = AppColors.accentGold;
-      finalLabel = '$difference hari lagi';
-    } else {
-      effectiveBadgeColor = Colors.white.withOpacity(0.05); 
-      effectiveTextColor = AppColors.textSecondary;
-      finalLabel = 'Tgl ${debt.dueDateDay}'; 
+    // 1. Cari Tenor Terdekat di Masa Depan/Berjalan (Untuk Monitoring Radius)
+    DateTime? currentTenorDate;
+    int? currentDiff;
+    
+    for (int i = 1; i <= debt.totalTenor; i++) {
+      DateTime checkDate = DateTime(debt.dateBorrowed.year, debt.dateBorrowed.month + i, debt.dueDateDay);
+      if (checkDate.isAfter(today.subtract(const Duration(days: 1)))) {
+        currentTenorDate = checkDate;
+        currentDiff = checkDate.difference(today).inDays;
+        break; 
+      }
     }
+
+    // 2. Cek Apakah Ada Tenor yang Menunggak dari Bulan Lalu (Nunggak Lama)
+    final List<int> allOverdueIndices = debt.overdueTenorIndices;
+    final bool hasPastMonthDebt = allOverdueIndices.any((index) {
+      DateTime d = DateTime(debt.dateBorrowed.year, debt.dateBorrowed.month + index, debt.dueDateDay);
+      return d.isBefore(DateTime(today.year, today.month, 1));
+    });
+
+    // 3. Tentukan Label untuk Tenor Aktif/Mendatang
+    String? upcomingLabel;
+    Color upcomingBadgeColor = AppColors.accentGold.withOpacity(0.15);
+    Color upcomingTextColor = AppColors.accentGold;
+
+    if (!debt.isCompleted && currentTenorDate != null && currentDiff != null) {
+      if (currentDiff < 0) {
+        // --- LOGIKA BARU: TELAT DI BULAN BERJALAN ---
+        if (currentDiff.abs() > 7) {
+          upcomingLabel = 'Nunggak'; // Label Nunggak untuk telat > 7 hari di bulan ini
+          upcomingBadgeColor = AppColors.negativeRed.withOpacity(0.15);
+          upcomingTextColor = AppColors.negativeRed;
+        } else {
+          upcomingLabel = 'Telat ${currentDiff.abs()} hari';
+          upcomingBadgeColor = AppColors.negativeRed.withOpacity(0.15);
+          upcomingTextColor = AppColors.negativeRed;
+        }
+      } else if (currentDiff == 0) {
+        upcomingLabel = 'Hari Ini';
+        upcomingBadgeColor = AppColors.accentGold;
+        upcomingTextColor = Colors.black;
+      } else if (currentDiff > 0 && currentDiff <= 7) {
+        upcomingLabel = '$currentDiff hari lagi';
+        upcomingBadgeColor = AppColors.accentGold.withOpacity(0.15);
+        upcomingTextColor = AppColors.accentGold;
+      } else if (currentDiff > 7 && !hasPastMonthDebt) {
+        // Hanya tampil tanggal jika bersih dari tunggakan lama
+        upcomingLabel = DateFormat('d MMM', 'id_ID').format(currentTenorDate);
+        upcomingBadgeColor = Colors.white.withOpacity(0.05);
+        upcomingTextColor = AppColors.textSecondary;
+      }
+    }
+
+    // 4. Warna Teks Utama
+    final Color mainTextColor = (hasPastMonthDebt && !debt.isCompleted) 
+        ? AppColors.negativeRed 
+        : AppColors.textPrimary;
+
+    // Box kecil T1, T2... (Untuk semua yang telat > 7 hari)
+    final List<int> displayOverdueBoxes = allOverdueIndices.where((index) {
+      DateTime d = DateTime(debt.dateBorrowed.year, debt.dateBorrowed.month + index, debt.dueDateDay);
+      return today.difference(d).inDays > 7;
+    }).toList();
 
     final int paidTenor = debt.totalTenor - debt.remainingTenor;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0), // Kembali ke aslinya
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
       child: InkWell(
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (routeContext) => BlocProvider.value(
-                value: debtCubit,
-                child: DebtDetailPage(debt: debt),
-              ),
-            ),
-          );
-        },
+        onTap: () => Navigator.push(
+          context, 
+          MaterialPageRoute(builder: (_) => BlocProvider.value(value: debtCubit, child: DebtDetailPage(debt: debt)))
+        ),
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16), // Kembali ke aslinya
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
           decoration: BoxDecoration(
             color: AppColors.surfaceColor,
-            borderRadius: BorderRadius.circular(8), // Kembali ke circular(8)
+            borderRadius: BorderRadius.circular(8),
           ),
           child: Row(
             children: [
@@ -92,23 +108,11 @@ class DebtListItem extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      '${debt.borrower} | ${debt.purpose}', 
-                      style: const TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                    Text('${debt.borrower} | ${debt.purpose}', 
+                      style: TextStyle(color: mainTextColor, fontSize: 14, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 4),
-                    Text(
-                      NumberFormatter.formatRupiah(debt.amountPerTenor), 
-                      style: const TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                    Text(NumberFormatter.formatRupiah(debt.amountPerTenor), 
+                      style: TextStyle(color: mainTextColor, fontSize: 16, fontWeight: FontWeight.bold)),
                   ],
                 ),
               ),
@@ -116,38 +120,28 @@ class DebtListItem extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  Wrap(
+                    direction: Axis.vertical,
+                    crossAxisAlignment: WrapCrossAlignment.end,
+                    spacing: 4,
+                    children: [
+                      if (hasPastMonthDebt && !debt.isCompleted)
+                        _buildBadge('Nunggak Lama', AppColors.negativeRed, Colors.white),
+                      
+                      if (upcomingLabel != null && !debt.isCompleted)
+                        _buildBadge(upcomingLabel, upcomingBadgeColor, upcomingTextColor),
+                      
+                      if (debt.isCompleted)
+                        _buildBadge('LUNAS', AppColors.positiveGreen.withOpacity(0.15), AppColors.positiveGreen),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: effectiveBadgeColor,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          finalLabel,
-                          style: TextStyle(
-                            color: effectiveTextColor,
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        '$paidTenor/${debt.totalTenor}', 
-                        style: const TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const Icon(
-                        Icons.chevron_right,
-                        color: AppColors.textSecondary,
-                        size: 20,
-                      ),
+                      Text('$paidTenor/${debt.totalTenor}', 
+                        style: TextStyle(color: hasPastMonthDebt ? AppColors.negativeRed : AppColors.textSecondary, fontSize: 14, fontWeight: FontWeight.bold)),
+                      const Icon(Icons.chevron_right, color: AppColors.textSecondary, size: 20),
                     ],
                   ),
                   if (displayOverdueBoxes.isNotEmpty && !debt.isCompleted) ...[
@@ -162,14 +156,7 @@ class DebtListItem extends StatelessWidget {
                           border: Border.all(color: AppColors.negativeRed, width: 0.5),
                           borderRadius: BorderRadius.circular(2),
                         ),
-                        child: Text(
-                          'T$t',
-                          style: const TextStyle(
-                            color: AppColors.negativeRed,
-                            fontSize: 8,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
+                        child: Text('T$t', style: const TextStyle(color: AppColors.negativeRed, fontSize: 8, fontWeight: FontWeight.bold)),
                       )).toList(),
                     ),
                   ],
@@ -179,6 +166,14 @@ class DebtListItem extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildBadge(String label, Color bgColor, Color textColor) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(color: bgColor, borderRadius: BorderRadius.circular(4)),
+      child: Text(label, style: TextStyle(color: textColor, fontSize: 10, fontWeight: FontWeight.bold)),
     );
   }
 }

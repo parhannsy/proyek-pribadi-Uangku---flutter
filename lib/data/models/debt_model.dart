@@ -65,17 +65,30 @@ class DebtModel {
     };
   }
 
-  // MENTOR FIX: Logika Jatuh Tempo yang Objektif
-  // Mengambil jatuh tempo bulan berjalan tanpa lompat otomatis ke bulan depan
-  DateTime get currentMonthDueDate {
-    DateTime now = DateTime.now();
+  /// REVISI MENTOR: Logika Jatuh Tempo Dinamis
+  /// Mengambil tanggal jatuh tempo berdasarkan tenor berikutnya yang harus dibayar.
+  DateTime get nextDueDate {
+    if (isCompleted) return dateBorrowed; // Atau tanggal lunas jika tersedia
+
+    // Hitung tenor keberapakah yang harus dibayar selanjutnya
+    // Contoh: Total 12, sisa 7, berarti yang sedang berjalan adalah tenor ke-6
+    final int nextTenorIndex = (totalTenor - remainingTenor) + 1;
+
     try {
-      return DateTime(now.year, now.month, dueDateDay);
+      // Menghitung bulan berdasarkan dateBorrowed + index tenor
+      return DateTime(
+        dateBorrowed.year, 
+        dateBorrowed.month + nextTenorIndex, 
+        dueDateDay
+      );
     } catch (e) {
-      // Handle jika tanggal 31 di bulan yang hanya sampai 30
-      return DateTime(now.year, now.month + 1, 0); 
+      // Fallback jika tanggal tidak valid (misal tgl 31 di bulan Februari)
+      return DateTime(dateBorrowed.year, dateBorrowed.month + nextTenorIndex + 1, 0);
     }
   }
+
+  /// Alias untuk mempertahankan kompatibilitas dengan widget list item
+  DateTime get currentMonthDueDate => nextDueDate;
   
   DebtModel copyWith({
     String? id,
@@ -101,35 +114,27 @@ class DebtModel {
     );
   }
 
-  // Tambahkan method ini di dalam class DebtModel di lib/data/models/debt_model.dart
+  List<int> get overdueTenorIndices {
+    if (isCompleted) return [];
 
-List<int> get overdueTenorIndices {
-  if (isCompleted) return [];
+    List<int> overdueIndices = [];
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
 
-  List<int> overdueIndices = [];
-  final now = DateTime.now();
-  final today = DateTime(now.year, now.month, now.day);
+    for (int i = 1; i <= totalTenor; i++) {
+      DateTime scheduledDate = DateTime(
+        dateBorrowed.year,
+        dateBorrowed.month + i,
+        dueDateDay,
+      );
 
-  // Kita hitung dari tenor pertama (bulan setelah dateBorrowed)
-  // hingga tenor terakhir yang seharusnya sudah dibayar sampai hari ini.
-  for (int i = 1; i <= totalTenor; i++) {
-    // Hitung tanggal jatuh tempo untuk tenor ke-i
-    DateTime scheduledDate = DateTime(
-      dateBorrowed.year,
-      dateBorrowed.month + i,
-      dueDateDay,
-    );
-
-    // Jika jadwalnya sudah lewat dari hari ini
-    if (scheduledDate.isBefore(today) || scheduledDate.isAtSameMomentAs(today)) {
-      // Cek apakah tenor ini sudah dibayar?
-      // Logika: Jika tenor ke-i lebih besar dari jumlah tenor yang sudah dibayar
-      int paidTenorCount = totalTenor - remainingTenor;
-      if (i > paidTenorCount) {
-        overdueIndices.add(i);
+      if (scheduledDate.isBefore(today) || scheduledDate.isAtSameMomentAs(today)) {
+        int paidTenorCount = totalTenor - remainingTenor;
+        if (i > paidTenorCount) {
+          overdueIndices.add(i);
+        }
       }
     }
+    return overdueIndices;
   }
-  return overdueIndices;
-}
 }

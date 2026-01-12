@@ -136,12 +136,22 @@ class DebtDetailPage extends StatelessWidget {
                 ),
                 
                 const SizedBox(height: 24),
+
+                // 1. Banner Info Navigasi (Hanya muncul jika BELUM LUNAS)
+                if (!currentDebt.isCompleted) ...[
+                  AnimatedSlider(
+                    index: 1,
+                    child: _buildInfoBanner(),
+                  ),
+                  const SizedBox(height: 24),
+                ],
                 
-                const AnimatedSlider(
-                  index: 1,
+                // 2. Judul Dinamis berdasarkan status Lunas
+                AnimatedSlider(
+                  index: 2,
                   child: Text(
-                    'Riwayat Cicilan',
-                    style: TextStyle(
+                    currentDebt.isCompleted ? 'Riwayat Pembayaran Tenor' : 'Tenor Berjalan',
+                    style: const TextStyle(
                       color: AppColors.textPrimary, 
                       fontSize: 18, 
                       fontWeight: FontWeight.bold
@@ -150,6 +160,7 @@ class DebtDetailPage extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
                 
+                // 3. List Tenor
                 ListView.builder(
                   shrinkWrap: true,
                   padding: EdgeInsets.zero,
@@ -158,7 +169,7 @@ class DebtDetailPage extends StatelessWidget {
                   itemBuilder: (context, index) {
                     final tenorNumber = index + 1;
                     return AnimatedSlider(
-                      index: index + 2,
+                      index: index + 3,
                       child: _buildPaymentItem(
                         context: context,
                         currentDebt: currentDebt,
@@ -167,14 +178,6 @@ class DebtDetailPage extends StatelessWidget {
                       ),
                     );
                   },
-                ),
-
-                const SizedBox(height: 12),
-                
-                // Banner Info Navigasi (Batch Payment)
-                AnimatedSlider(
-                  index: currentDebt.totalTenor + 2,
-                  child: _buildInfoBanner(),
                 ),
                 
                 const SizedBox(height: 40),
@@ -322,7 +325,7 @@ class DebtDetailPage extends StatelessWidget {
           ElevatedButton(
             onPressed: isPaid 
                 ? () => _navigateToReceipt(context, currentDebt, tenorNumber)
-                : (isNextToPay && !currentDebt.isCompleted) // REVISI: Lock untuk tenor masa depan
+                : (isNextToPay && !currentDebt.isCompleted) 
                     ? () => _showPaymentModal(context, tenorNumber, currentDebt) 
                     : null,
             style: ElevatedButton.styleFrom(

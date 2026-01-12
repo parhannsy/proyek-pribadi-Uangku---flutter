@@ -188,7 +188,7 @@ class _PiutangPageState extends State<PiutangPage> {
 
     // Tambahkan daftar hutang
     items.addAll(debts.map((debt) => Padding(
-      padding: const EdgeInsets.only(bottom: 12.0),
+      padding: const EdgeInsets.only(bottom: 4.0),
       child: DebtListItem(debt: debt),
     )));
     
