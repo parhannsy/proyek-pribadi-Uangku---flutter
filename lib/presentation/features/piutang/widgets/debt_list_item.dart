@@ -16,34 +16,25 @@ class DebtListItem extends StatelessWidget {
     required this.debt,
   });
 
-  String _getDueDateStatus(DateTime nextDueDate) {
-    final now = DateTime.now();
-    final difference = nextDueDate.difference(now);
-    final days = difference.inDays;
-
-    if (days == 0) return 'Hari ini';
-    if (days < 0) return 'Terlambat ${days.abs()} hari';
-    
-    return '$days hari';
-  }
-
   @override
   Widget build(BuildContext context) {
     final debtCubit = context.read<DebtCubit>(); 
     
-    final DateTime nextDueDate = debt.nextDueDate;
-    final String dueDateText = _getDueDateStatus(nextDueDate);
-    
-    final int remainingTenor = debt.remainingTenor;
-    final int paidTenor = debt.totalTenor - remainingTenor;
-    
-    final bool isDueToday = nextDueDate.day == DateTime.now().day && 
-                            nextDueDate.month == DateTime.now().month && 
-                            nextDueDate.year == DateTime.now().year;
-    
-    final bool isOverdue = nextDueDate.isBefore(DateTime.now().copyWith(hour: 0, minute: 0, second: 0));
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final dueDate = debt.currentMonthDueDate;
+    final difference = dueDate.difference(today).inDays;
 
-    // LOGIKA WARNA BADGE - DIKEMBALIKAN & DIPERBAIKI
+    final bool isDueToday = difference == 0;
+    final bool isOverdue = difference < 0;
+    
+    // Logika Filter Kotak Merah: Muncul jika keterlambatan > 7 hari
+    final List<int> allOverdue = debt.overdueTenorIndices;
+    final List<int> displayOverdueBoxes = allOverdue.where((tenorIndex) {
+      DateTime tenorDate = DateTime(debt.dateBorrowed.year, debt.dateBorrowed.month + tenorIndex, debt.dueDateDay);
+      return today.difference(tenorDate).inDays > 7;
+    }).toList();
+
     Color effectiveBadgeColor;
     Color effectiveTextColor;
     String finalLabel;
@@ -52,23 +43,31 @@ class DebtListItem extends StatelessWidget {
       effectiveBadgeColor = AppColors.positiveGreen.withOpacity(0.15);
       effectiveTextColor = AppColors.positiveGreen;
       finalLabel = 'LUNAS';
-    } else if (isOverdue) {
+    } 
+    // Status Terlambat (Hanya tampil di badge jika <= 7 hari)
+    else if (isOverdue && difference.abs() <= 7) {
       effectiveBadgeColor = AppColors.negativeRed; 
       effectiveTextColor = Colors.white;
-      finalLabel = isDueToday ? 'Hari Ini' : dueDateText;
-    } else if (isDueToday) {
+      finalLabel = 'Terlambat ${difference.abs()} hari';
+    } 
+    else if (isDueToday) {
       effectiveBadgeColor = AppColors.accentGold; 
       effectiveTextColor = Colors.black;
       finalLabel = 'Hari Ini';
-    } else {
-      // Status Normal: Menggunakan warna yang kontras dengan surface
+    } else if (difference > 0 && difference <= 7) {
       effectiveBadgeColor = AppColors.accentGold.withOpacity(0.1); 
       effectiveTextColor = AppColors.accentGold;
-      finalLabel = 'Jatuh tempo $dueDateText';
+      finalLabel = '$difference hari lagi';
+    } else {
+      effectiveBadgeColor = Colors.white.withOpacity(0.05); 
+      effectiveTextColor = AppColors.textSecondary;
+      finalLabel = 'Tgl ${debt.dueDateDay}'; 
     }
 
+    final int paidTenor = debt.totalTenor - debt.remainingTenor;
+
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+      padding: const EdgeInsets.symmetric(horizontal: 16.0), // Kembali ke aslinya
       child: InkWell(
         onTap: () {
           Navigator.push(
@@ -82,14 +81,13 @@ class DebtListItem extends StatelessWidget {
           );
         },
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16), // Kembali ke aslinya
           decoration: BoxDecoration(
             color: AppColors.surfaceColor,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(8), // Kembali ke circular(8)
           ),
           child: Row(
             children: [
-              // Kolom Kiri: Info Utama
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -114,44 +112,67 @@ class DebtListItem extends StatelessWidget {
                   ],
                 ),
               ),
-
-              // Kolom Kanan: Status & Tenor
-              Row(
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Badge Jatuh Tempo / Lunas
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: effectiveBadgeColor,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      finalLabel,
-                      style: TextStyle(
-                        color: effectiveTextColor,
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: effectiveBadgeColor,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          finalLabel,
+                          style: TextStyle(
+                            color: effectiveTextColor,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ),
+                      const SizedBox(width: 8),
+                      Text(
+                        '$paidTenor/${debt.totalTenor}', 
+                        style: const TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const Icon(
+                        Icons.chevron_right,
+                        color: AppColors.textSecondary,
+                        size: 20,
+                      ),
+                    ],
+                  ),
+                  if (displayOverdueBoxes.isNotEmpty && !debt.isCompleted) ...[
+                    const SizedBox(height: 6),
+                    Wrap(
+                      alignment: WrapAlignment.end,
+                      spacing: 4,
+                      children: displayOverdueBoxes.map((t) => Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: AppColors.negativeRed.withOpacity(0.1),
+                          border: Border.all(color: AppColors.negativeRed, width: 0.5),
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                        child: Text(
+                          'T$t',
+                          style: const TextStyle(
+                            color: AppColors.negativeRed,
+                            fontSize: 8,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      )).toList(),
                     ),
-                  ),
-                  
-                  const SizedBox(width: 8),
-
-                  // Info Tenor
-                  Text(
-                    '$paidTenor/${debt.totalTenor}', 
-                    style: const TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const Icon(
-                    Icons.chevron_right,
-                    color: AppColors.textSecondary,
-                    size: 20,
-                  ),
+                  ],
                 ],
               ),
             ],

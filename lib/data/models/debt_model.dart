@@ -5,22 +5,17 @@ import 'package:flutter/foundation.dart';
 @immutable
 class DebtModel {
   final String id;
-  
-  // Detail Peminjaman
-  final String borrower; // Nama Platform / Pihak yang memberi hutang
-  final String purpose;  // Kebutuhan meminjam
+  final String borrower; 
+  final String purpose;  
 
-  // Detail Tanggal
-  final DateTime dateBorrowed; // Tanggal meminjam
-  final int dueDateDay;       // Tanggal jatuh tempo (misal: tanggal 25)
+  final DateTime dateBorrowed; 
+  final int dueDateDay;       
 
-  // Detail Angsuran/Tenor
-  final int totalTenor;         // Total tenor (misal: 12 bulan)
-  final int remainingTenor;     // Sisa tenor
-  final int amountPerTenor;     // Biaya/Nominal per tenor (angka, bukan string)
+  final int totalTenor;         
+  final int remainingTenor;     
+  final int amountPerTenor;     
 
-  // Status
-  final bool isCompleted;      // Apakah hutang sudah lunas?
+  final bool isCompleted;      
 
   const DebtModel({
     required this.id,
@@ -34,11 +29,7 @@ class DebtModel {
     this.isCompleted = false,
   }) : assert(dueDateDay >= 1 && dueDateDay <= 31, 'dueDateDay must be between 1 and 31');
   
-  // ===============================================
-  // 1. Factory Constructor from Map (Dari DB/JSON)
-  // ===============================================
   factory DebtModel.fromMap(Map<String, dynamic> map) {
-    // Helper function untuk konversi aman dari dynamic ke int
     int toIntSafe(dynamic value) {
       if (value == null) return 0;
       if (value is num) return value.toInt();
@@ -52,19 +43,14 @@ class DebtModel {
       dateBorrowed: map['dateBorrowed'] != null 
           ? DateTime.parse(map['dateBorrowed'] as String)
           : DateTime.now(),
-      // Menggunakan casting ke num lalu toInt() untuk menghindari error double subtype
       dueDateDay: toIntSafe(map['dueDateDay']),
       totalTenor: toIntSafe(map['totalTenor']),
       remainingTenor: toIntSafe(map['remainingTenor']),
       amountPerTenor: toIntSafe(map['amountPerTenor']),
-      // Konversi status lunas
       isCompleted: toIntSafe(map['isCompleted']) == 1, 
     );
   }
 
-  // ===============================================
-  // 2. Method to Map (Untuk disimpan ke DB/JSON)
-  // ===============================================
   Map<String, dynamic> toMap() {
     return {
       'id': id,
@@ -79,22 +65,18 @@ class DebtModel {
     };
   }
 
-  // ===============================================
-  // 3. Helper Method: Mendapatkan Jatuh Tempo Bulan Depan
-  // ===============================================
-  DateTime get nextDueDate {
+  // MENTOR FIX: Logika Jatuh Tempo yang Objektif
+  // Mengambil jatuh tempo bulan berjalan tanpa lompat otomatis ke bulan depan
+  DateTime get currentMonthDueDate {
     DateTime now = DateTime.now();
-    DateTime nextDate = DateTime(now.year, now.month, dueDateDay);
-
-    if (nextDate.isBefore(now)) {
-      nextDate = DateTime(now.year, now.month + 1, dueDateDay);
+    try {
+      return DateTime(now.year, now.month, dueDateDay);
+    } catch (e) {
+      // Handle jika tanggal 31 di bulan yang hanya sampai 30
+      return DateTime(now.year, now.month + 1, 0); 
     }
-    return nextDate;
   }
   
-  // ===============================================
-  // 4. Method copyWith (untuk State Management)
-  // ===============================================
   DebtModel copyWith({
     String? id,
     String? borrower,
@@ -118,4 +100,36 @@ class DebtModel {
       isCompleted: isCompleted ?? this.isCompleted,
     );
   }
+
+  // Tambahkan method ini di dalam class DebtModel di lib/data/models/debt_model.dart
+
+List<int> get overdueTenorIndices {
+  if (isCompleted) return [];
+
+  List<int> overdueIndices = [];
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+
+  // Kita hitung dari tenor pertama (bulan setelah dateBorrowed)
+  // hingga tenor terakhir yang seharusnya sudah dibayar sampai hari ini.
+  for (int i = 1; i <= totalTenor; i++) {
+    // Hitung tanggal jatuh tempo untuk tenor ke-i
+    DateTime scheduledDate = DateTime(
+      dateBorrowed.year,
+      dateBorrowed.month + i,
+      dueDateDay,
+    );
+
+    // Jika jadwalnya sudah lewat dari hari ini
+    if (scheduledDate.isBefore(today) || scheduledDate.isAtSameMomentAs(today)) {
+      // Cek apakah tenor ini sudah dibayar?
+      // Logika: Jika tenor ke-i lebih besar dari jumlah tenor yang sudah dibayar
+      int paidTenorCount = totalTenor - remainingTenor;
+      if (i > paidTenorCount) {
+        overdueIndices.add(i);
+      }
+    }
+  }
+  return overdueIndices;
+}
 }

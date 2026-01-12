@@ -15,43 +15,48 @@ class BalanceSummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Menggunakan context.watch agar widget rebuild otomatis saat ada perubahan state
     final arusState = context.watch<ArusCubit>().state;
     final debtState = context.watch<DebtCubit>().state;
     final needsState = context.watch<NeedsCubit>().state;
 
-    final now = DateTime.now();
-
     // 1. UANG TERSEDIA (Saldo Riil saat ini)
     final double uangTersedia = arusState.totalIncome - arusState.totalExpense;
 
-    // 2. UANG DIBUTUHKAN (Sisa Anggaran Needs + Cicilan Hutang Bulan Ini)
+    // 2. UANG DIBUTUHKAN (Sisa Anggaran Needs + Cicilan Hutang Bulan Ini/Terlambat)
     
     // --- Logika Needs Dinamis ---
     double sisaKebutuhanBulanIni = 0;
     if (needsState is NeedsLoadSuccess) {
-      // MENTOR LOGIC: Gunakan remainingAmount (Budget - Used) 
-      // Jika used sudah melebihi budget, kita anggap 0 (tidak butuh uang lagi karena sudah habis/over)
       sisaKebutuhanBulanIni = needsState.needs.fold(0, (sum, item) {
+        // Hanya hitung sisa budget yang belum terpakai
         return sum + (item.remainingAmount > 0 ? item.remainingAmount : 0);
       });
     }
 
-    // --- Logika Debt Dinamis (Hanya Bulan Ini) ---
-    double cicilanHutangBulanIni = 0;
+    // --- Logika Debt Dinamis (FIXED) ---
+    double cicilanHutangDibutuhkan = 0;
     if (debtState is DebtLoadSuccess) {
-      cicilanHutangBulanIni = debtState.debts.where((debt) {
+      final now = DateTime.now();
+
+      cicilanHutangDibutuhkan = debtState.debts.where((debt) {
+        if (debt.isCompleted) return false;
+
         // MENTOR LOGIC: 
-        // 1. Hutang belum lunas
-        // 2. Jatuh temponya adalah bulan ini (cek berdasarkan dueDateDay dan current month)
-        bool isNotCompleted = !debt.isCompleted;
-        bool isDueThisMonth = debt.nextDueDate.month == now.month && 
-                             debt.nextDueDate.year == now.year;
+        // Ambil jatuh tempo bulan ini. 
+        // Jika sudah lewat (overdue) atau jatuh tempo hari ini/nanti di bulan ini, 
+        // maka uangnya masih "dibutuhkan".
+        final dueDate = debt.currentMonthDueDate;
         
-        return isNotCompleted && isDueThisMonth;
+        // Kita anggap uang dibutuhkan jika:
+        // 1. Belum lunas
+        // 2. Jatuh temponya ada di bulan berjalan (baik yang sudah lewat maupun belum)
+        return dueDate.month == now.month && dueDate.year == now.year;
+        
       }).fold(0, (sum, debt) => sum + debt.amountPerTenor);
     }
 
-    final double uangDibutuhkan = sisaKebutuhanBulanIni + cicilanHutangBulanIni;
+    final double uangDibutuhkan = sisaKebutuhanBulanIni + cicilanHutangDibutuhkan;
 
     // 3. STATUS KEUANGAN
     final double statusKeuangan = uangTersedia - uangDibutuhkan;
@@ -62,7 +67,7 @@ class BalanceSummaryCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
+          const Text(
             'Uang tersedia saat ini',
             style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
           ),

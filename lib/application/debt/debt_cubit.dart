@@ -17,14 +17,21 @@ class DebtCubit extends Cubit<DebtState> {
   // MENTOR REVISION: Ganti getActiveDebts menjadi getAllDebts
   // Agar state mengandung SEMUA data (aktif & lunas) untuk kebutuhan filtering di UI.
   Future<void> loadActiveDebts() async {
-    try {
-      emit(DebtLoading());
-      final debts = await _repository.getAllDebts(); // AMBIL SEMUA
-      emit(DebtLoadSuccess(debts: debts));
-    } catch (e) {
-      emit(DebtLoadFailure(message: "Gagal memuat data: ${e.toString()}"));
-    }
+  try {
+    emit(DebtLoading());
+    final debts = await _repository.getAllDebts();
+    
+    // MENTOR TIP: Sortir agar yang hampir jatuh tempo atau terlambat ada di atas
+    debts.sort((a, b) {
+      if (a.isCompleted != b.isCompleted) return a.isCompleted ? 1 : -1;
+      return a.dueDateDay.compareTo(b.dueDateDay);
+    });
+
+    emit(DebtLoadSuccess(debts: debts));
+  } catch (e) {
+    emit(DebtLoadFailure(message: "Gagal memuat data: ${e.toString()}"));
   }
+}
 
   Future<void> addDebt(DebtModel debt) async {
     final lastState = state;

@@ -1,6 +1,4 @@
-// lib/presentation/features/piutang/debt_detail_page.dart
-
-// ignore_for_file: deprecated_member_use
+// lib/presentation/features/piutang/pages/debt_detail_page.dart
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -83,10 +81,8 @@ class DebtDetailPage extends StatelessWidget {
     }
   }
 
-  /// MENTOR LOGIC: Mencari tanggal transaksi terakhir untuk status "Rampung"
   DateTime? _getCompletionDate(BuildContext context, String debtId) {
     final aruses = context.read<ArusCubit>().state.aruses;
-    // Filter transaksi berdasarkan debtId, urutkan dari yang terbaru
     final lastTransaction = aruses
         .where((a) => a.debtId == debtId)
         .sortedBy((a) => a.timestamp)
@@ -161,19 +157,24 @@ class DebtDetailPage extends StatelessWidget {
                   itemCount: currentDebt.totalTenor,
                   itemBuilder: (context, index) {
                     final tenorNumber = index + 1;
-                    final isPaid = tenorNumber <= (currentDebt.totalTenor - currentDebt.remainingTenor);
-                    
                     return AnimatedSlider(
                       index: index + 2,
                       child: _buildPaymentItem(
                         context: context,
                         currentDebt: currentDebt,
                         tenorNumber: tenorNumber,
-                        isPaid: isPaid,
                         dateFormat: dateFormat,
                       ),
                     );
                   },
+                ),
+
+                const SizedBox(height: 12),
+                
+                // Banner Info Navigasi (Batch Payment)
+                AnimatedSlider(
+                  index: currentDebt.totalTenor + 2,
+                  child: _buildInfoBanner(),
                 ),
                 
                 const SizedBox(height: 40),
@@ -196,12 +197,10 @@ class DebtDetailPage extends StatelessWidget {
       child: Column(
         children: [
           _buildDetailRow('Tujuan', debt.purpose),
-          // REVISI: Tambahkan tanggal pinjam
           _buildDetailRow('Tanggal Pinjam', dateFormat.format(debt.dateBorrowed)),
           _buildDetailRow('Total Pinjaman', NumberFormatter.formatRupiah(totalAmount)),
           _buildDetailRow('Cicilan / Bulan', NumberFormatter.formatRupiah(debt.amountPerTenor)),
           
-          // REVISI: Logika dinamis untuk Sisa Tenor vs Rampung Pada
           if (debt.isCompleted)
             _buildDetailRow(
               'Rampung Pada', 
@@ -229,16 +228,50 @@ class DebtDetailPage extends StatelessWidget {
     required BuildContext context,
     required DebtModel currentDebt,
     required int tenorNumber,
-    required bool isPaid,
     required DateFormat dateFormat,
   }) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    
     final dueDate = DateTime(
       currentDebt.dateBorrowed.year, 
       currentDebt.dateBorrowed.month + tenorNumber, 
       currentDebt.dueDateDay
     );
 
-    final bool isNextToPay = tenorNumber == (currentDebt.totalTenor - currentDebt.remainingTenor + 1);
+    final isPaid = tenorNumber <= (currentDebt.totalTenor - currentDebt.remainingTenor);
+    final isOverdue = !isPaid && today.isAfter(dueDate);
+    final isNextToPay = !isPaid && tenorNumber == (currentDebt.totalTenor - currentDebt.remainingTenor + 1);
+
+    Color statusColor;
+    IconData statusIcon;
+    String statusLabel;
+    String statusDate;
+    Color borderColor = Colors.white.withOpacity(0.02);
+
+    if (isPaid) {
+      statusColor = AppColors.positiveGreen;
+      statusIcon = Icons.check_circle;
+      statusLabel = 'Sudah Dibayar';
+      statusDate = ''; 
+    } else if (isOverdue) {
+      statusColor = AppColors.negativeRed;
+      statusIcon = Icons.warning_rounded;
+      statusLabel = 'Terlambat';
+      statusDate = 'Jatuh tempo: ${dateFormat.format(dueDate)}';
+      borderColor = AppColors.negativeRed.withOpacity(0.3);
+    } else if (isNextToPay) {
+      statusColor = AppColors.accentGold;
+      statusIcon = Icons.pending_actions_rounded;
+      statusLabel = 'Saatnya Bayar';
+      statusDate = 'Batas: ${dateFormat.format(dueDate)}';
+      borderColor = AppColors.accentGold.withOpacity(0.5);
+    } else {
+      statusColor = AppColors.textSecondary;
+      statusIcon = Icons.schedule;
+      statusLabel = 'Mendatang';
+      statusDate = 'Est. ${dateFormat.format(dueDate)}';
+    }
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -246,28 +279,24 @@ class DebtDetailPage extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.surfaceColor,
         borderRadius: BorderRadius.circular(12),
-        border: isNextToPay 
-            ? Border.all(color: AppColors.accentGold.withOpacity(0.5), width: 1) 
-            : Border.all(color: Colors.white.withOpacity(0.02), width: 1),
+        border: Border.all(color: borderColor, width: 1),
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: isPaid ? AppColors.positiveGreen.withOpacity(0.1) : AppColors.primaryBackground,
+              color: statusColor.withOpacity(0.1),
               shape: BoxShape.circle,
             ),
-            child: Icon(
-              isPaid ? Icons.check_circle : Icons.schedule,
-              size: 20,
-              color: isPaid ? AppColors.positiveGreen : AppColors.textSecondary,
-            ),
+            child: Icon(statusIcon, size: 20, color: statusColor),
           ),
           const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
                   'Tenor Ke-$tenorNumber', 
@@ -275,32 +304,72 @@ class DebtDetailPage extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  isPaid ? 'Sudah Dibayar' : 'Jatuh Tempo: ${dateFormat.format(dueDate)}',
-                  style: TextStyle(
-                    color: isPaid ? AppColors.positiveGreen : AppColors.textSecondary, 
-                    fontSize: 12
-                  ),
+                  statusLabel,
+                  style: TextStyle(color: statusColor, fontSize: 12, fontWeight: FontWeight.w600),
                 ),
+                if (statusDate.isNotEmpty)
+                  Text(
+                    statusDate,
+                    style: TextStyle(color: AppColors.textSecondary.withOpacity(0.7), fontSize: 11),
+                    softWrap: true,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
               ],
             ),
           ),
+          const SizedBox(width: 8), 
           ElevatedButton(
             onPressed: isPaid 
                 ? () => _navigateToReceipt(context, currentDebt, tenorNumber)
-                : (isNextToPay && !currentDebt.isCompleted) 
+                : (isNextToPay && !currentDebt.isCompleted) // REVISI: Lock untuk tenor masa depan
                     ? () => _showPaymentModal(context, tenorNumber, currentDebt) 
                     : null,
             style: ElevatedButton.styleFrom(
-              backgroundColor: isPaid ? AppColors.positiveGreen.withOpacity(0.15) : AppColors.accentGold,
+              backgroundColor: isPaid ? statusColor.withOpacity(0.15) : statusColor,
               disabledBackgroundColor: Colors.white.withOpacity(0.05),
-              foregroundColor: isPaid ? AppColors.positiveGreen : AppColors.primaryBackground,
+              foregroundColor: isPaid ? statusColor : AppColors.primaryBackground,
               elevation: 0,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              minimumSize: const Size(80, 36),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             ),
             child: Text(
-              isPaid ? 'Bukti Bayar' : 'Bayar',
-              style: const TextStyle(fontWeight: FontWeight.bold),
+              isPaid ? 'Bukti' : 'Bayar',
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoBanner() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.accentGold.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.accentGold.withOpacity(0.1)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.info_outline_rounded, color: AppColors.accentGold, size: 20),
+          const SizedBox(width: 12),
+          Expanded(
+            child: RichText(
+              text: const TextSpan(
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.5),
+                children: [
+                  TextSpan(text: "Untuk pembayaran lebih dari 1 tenor secara bersamaan, silakan lakukan di halaman "),
+                  TextSpan(
+                    text: "Arus > Tambah Pengeluaran > Kategori Tagihan.",
+                    style: TextStyle(color: AppColors.accentGold, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
             ),
           ),
         ],
