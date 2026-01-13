@@ -1,5 +1,3 @@
-// lib/data/impl/sqflite/arus_repository_impl.dart
-
 import 'package:sqflite/sqflite.dart';
 import 'package:uangku/data/models/arus_model.dart';
 import 'package:uangku/data/repositories/arus_repository.dart'; 
@@ -77,7 +75,6 @@ class ArusRepositoryImpl implements ArusRepository {
   Future<List<Arus>> getArusByDebtId(String debtId) async {
     final db = await _dbService.database;
     
-    // MENTOR NOTE: Gunakan 'debt_id' sesuai dengan skema tabel di atas.
     final List<Map<String, dynamic>> maps = await db.query(
       tableName,
       where: 'debt_id = ?',
@@ -177,20 +174,15 @@ class ArusRepositoryImpl implements ArusRepository {
   }
 
   // =========================================================
-  // MAINTENANCE & AUTO-CLEANUP
+  // MAINTENANCE & POLICIES
   // =========================================================
 
   @override
   Future<void> deleteOldTransactions(int monthsLimit) async {
-    final db = await _dbService.database;
-    try {
-      await db.delete(
-        tableName,
-        where: "date(timestamp / 1000, 'unixepoch') < date('now', ?)",
-        whereArgs: ['-$monthsLimit months'],
-      );
-    } catch (e) {
-      // Log error
-    }
+    // MENTOR FIX: Fungsi ini dinonaktifkan untuk menjaga integritas data relasional 
+    // (Contoh: Sejarah pembayaran piutang dan snapshot kebutuhan).
+    // Data teks sangat ringan, sehingga retensi data permanen lebih berharga daripada 
+    // penghematan ruang penyimpanan yang tidak signifikan.
+    return;
   }
 }

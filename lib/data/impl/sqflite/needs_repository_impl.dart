@@ -7,15 +7,15 @@ class NeedsRepositoryImpl implements NeedsRepository {
   final DatabaseService _dbService;
   static const String tableName = 'needs';
   static const String tableArus = 'arus';
+  static const String tableSnapshot = 'need_snapshots';
 
   NeedsRepositoryImpl(this._dbService);
 
-  /// Helper untuk menyeragamkan format periode dengan ArusRepositoryImpl
   String _getPeriodString(int? month, int? year) {
     final now = DateTime.now();
     final m = (month ?? now.month).toString().padLeft(2, '0');
     final y = (year ?? now.year).toString();
-    return "$m-$y"; // Format MM-YYYY sesuai ArusRepositoryImpl
+    return "$m-$y";
   }
 
   @override
@@ -23,7 +23,6 @@ class NeedsRepositoryImpl implements NeedsRepository {
     final db = await _dbService.database;
     final period = _getPeriodString(month, year);
 
-    /// MENTOR NOTE: Mengambil data kebutuhan beserta total terpakai di bulan terkait
     final List<Map<String, dynamic>> maps = await db.rawQuery('''
       SELECT 
         n.*, 
@@ -39,23 +38,81 @@ class NeedsRepositoryImpl implements NeedsRepository {
     return maps.map((map) => NeedsModel.fromMap(map)).toList();
   }
 
-  /// MENTOR ADDITION: Fungsi untuk Riwayat Per Bulan
+  @override
+  Future<void> syncSnapshot(int month, int year) async {
+    final db = await _dbService.database;
+    final period = _getPeriodString(month, year);
+
+    final now = DateTime.now();
+    final currentPeriod = _getPeriodString(now.month, now.year);
+    
+    // Cek apakah snapshot sudah ada
+    final List<Map<String, dynamic>> existing = await db.query(
+      tableSnapshot,
+      where: 'period = ?',
+      whereArgs: [period],
+      limit: 1,
+    );
+
+    // MENTOR LOGIC: Buat snapshot jika belum ada, 
+    // ATAU update jika ini adalah periode bulan berjalan agar datanya sinkron
+    if (existing.isEmpty || period == currentPeriod) {
+      final List<Map<String, dynamic>> currentNeeds = await db.query(tableName);
+      if (currentNeeds.isEmpty) return;
+
+      final batch = db.batch();
+      for (var need in currentNeeds) {
+        batch.insert(
+          tableSnapshot,
+          {
+            'period': period,
+            'need_id': need['id'],
+            'category_name': need['category'],
+            'budget_limit': need['budget_limit'],
+          },
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
+      await batch.commit(noResult: true);
+    }
+  }
+
   @override
   Future<List<Map<String, dynamic>>> getMonthlySummary() async {
     final db = await _dbService.database;
-    
-    // Query ini mengelompokkan pengeluaran berdasarkan bulan dan tahun (MM-YYYY)
-    // Lalu mengambil total budget yang ada saat ini sebagai pembanding.
+
+    // 1. BACKFILL LOGIC: Tetap dipertahankan untuk integritas data lama
+    final List<Map<String, dynamic>> missingPeriods = await db.rawQuery('''
+      SELECT DISTINCT strftime('%m-%Y', timestamp / 1000, 'unixepoch') as period
+      FROM $tableArus
+      WHERE need_id IS NOT NULL 
+      AND period NOT IN (SELECT DISTINCT period FROM $tableSnapshot)
+    ''');
+
+    for (var row in missingPeriods) {
+      final parts = row['period'].toString().split('-');
+      await syncSnapshot(int.parse(parts[0]), int.parse(parts[1]));
+    }
+
+    // 2. QUERY DENGAN PENGURUTAN KRONOLOGIS
+    // MENTOR NOTE: Kita memecah period menjadi Year dan Month di level SQL 
+    // agar bisa diurutkan secara matematis (DESC).
     return await db.rawQuery('''
       SELECT 
-        strftime('%m-%Y', timestamp / 1000, 'unixepoch') as period,
-        SUM(amount) as total_spent,
-        (SELECT SUM(budget_limit) FROM $tableName) as total_budget_limit,
-        MAX(timestamp) as latest_timestamp
-      FROM $tableArus
-      WHERE need_id IS NOT NULL
-      GROUP BY period
-      ORDER BY latest_timestamp DESC
+        s.period,
+        SUM(s.budget_limit) as total_budget_limit,
+        (
+          SELECT COALESCE(SUM(amount), 0)
+          FROM $tableArus
+          WHERE need_id IS NOT NULL 
+          AND strftime('%m-%Y', timestamp / 1000, 'unixepoch') = s.period
+        ) as total_spent,
+        SUBSTR(s.period, 4, 4) as year_part,
+        SUBSTR(s.period, 1, 2) as month_part
+      FROM $tableSnapshot s
+      GROUP BY s.period
+      ORDER BY year_part DESC, month_part DESC
+      LIMIT 6
     ''');
   }
 
@@ -67,6 +124,9 @@ class NeedsRepositoryImpl implements NeedsRepository {
       need.toMap(),
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
+    // Langsung update snapshot bulan berjalan
+    final now = DateTime.now();
+    await syncSnapshot(now.month, now.year);
   }
 
   @override
@@ -78,6 +138,9 @@ class NeedsRepositoryImpl implements NeedsRepository {
       where: 'id = ?',
       whereArgs: [need.id],
     );
+    // Langsung update snapshot bulan berjalan
+    final now = DateTime.now();
+    await syncSnapshot(now.month, now.year);
   }
 
   @override
@@ -88,5 +151,6 @@ class NeedsRepositoryImpl implements NeedsRepository {
       where: 'id = ?',
       whereArgs: [id],
     );
+    // Catatan: Di snapshot data tetap ada untuk menjaga histori
   }
 }

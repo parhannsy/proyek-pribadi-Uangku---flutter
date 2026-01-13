@@ -10,6 +10,10 @@ class NeedsHistoryPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Ambil string periode bulan ini untuk pembanding (Format: MM-YYYY)
+    final now = DateTime.now();
+    final currentPeriod = "${now.month.toString().padLeft(2, '0')}-${now.year}";
+
     return Scaffold(
       backgroundColor: AppColors.primaryBackground,
       appBar: AppBar(
@@ -28,15 +32,6 @@ class NeedsHistoryPage extends StatelessWidget {
             fontWeight: FontWeight.bold,
           ),
         ),
-        actions: [
-          IconButton(
-            onPressed: null,
-            icon: Icon(
-              Icons.bar_chart_rounded,
-              color: Colors.white.withOpacity(0.3),
-            ),
-          ),
-        ],
       ),
       body: FutureBuilder<List<Map<String, dynamic>>>(
         future: context.read<NeedsRepository>().getMonthlySummary(),
@@ -51,52 +46,75 @@ class NeedsHistoryPage extends StatelessWidget {
             return _buildEmptyState();
           }
 
-          final historyData = snapshot.data!;
+          final allData = snapshot.data!;
+          
+          // MENTOR LOGIC: Pisahkan data bulan berjalan dan riwayat
+          final currentMonthData = allData.where((item) => item['period'] == currentPeriod).toList();
+          final historyData = allData.where((item) => item['period'] != currentPeriod).toList();
 
-          return ListView.builder(
+          return ListView(
             padding: const EdgeInsets.all(16),
-            // MENTOR FIX: +2 karena ada Banner (index 0) dan Header (index 1)
-            itemCount: historyData.length + 2,
-            itemBuilder: (context, index) {
+            children: [
               // 1. BANNER INFORMASI
-              if (index == 0) {
-                return const AnimatedSlider(
-                  index: 0,
-                  child: _NeedsHistoryBanner(),
-                );
-              }
+              const AnimatedSlider(
+                index: 0,
+                child: _NeedsHistoryBanner(),
+              ),
 
-              // 2. HEADER JUDUL
-              if (index == 1) {
-                return const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 20),
-                  child: AnimatedSlider(
-                    index: 1,
-                    child: Text(
-                      "Riwayat Penggunaan Dana",
-                      style: TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+              // 2. SEKSI BULAN INI
+              if (currentMonthData.isNotEmpty) ...[
+                _buildSectionHeader("Penggunaan Dana Bulan Ini", 1),
+                ...currentMonthData.map((item) => AnimatedSlider(
+                  index: 2,
+                  child: NeedsMonthlySummaryItem(
+                    period: _formatPeriod(item['period']),
+                    totalSpent: (item['total_spent'] as num).toDouble(),
+                    totalBudget: (item['total_budget_limit'] as num).toDouble(),
                   ),
-                );
-              }
+                )),
+              ],
 
-              // 3. LIST ITEM (Data asli dimulai dari index 2)
-              final item = historyData[index - 2];
-              return AnimatedSlider(
-                index: index,
-                child: NeedsMonthlySummaryItem(
-                  period: _formatPeriod(item['period']),
-                  totalSpent: (item['total_spent'] as num).toDouble(),
-                  totalBudget: (item['total_budget_limit'] as num).toDouble(),
+              // 3. SEKSI RIWAYAT LALU
+              if (historyData.isNotEmpty) ...[
+                _buildSectionHeader("Riwayat Penggunaan Dana", 3),
+                ListView.builder(
+                  shrinkWrap: true, // Penting agar bisa di dalam ListView
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: historyData.length,
+                  itemBuilder: (context, index) {
+                    final item = historyData[index];
+                    return AnimatedSlider(
+                      index: index + 4,
+                      child: NeedsMonthlySummaryItem(
+                        period: _formatPeriod(item['period']),
+                        totalSpent: (item['total_spent'] as num).toDouble(),
+                        totalBudget: (item['total_budget_limit'] as num).toDouble(),
+                      ),
+                    );
+                  },
                 ),
-              );
-            },
+              ],
+            ],
           );
         },
+      ),
+    );
+  }
+
+  // MENTOR HELPER: Membuat Header Seksi yang Konsisten
+  Widget _buildSectionHeader(String title, int index) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 24, bottom: 16),
+      child: AnimatedSlider(
+        index: index,
+        child: Text(
+          title,
+          style: const TextStyle(
+            color: AppColors.textPrimary,
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
       ),
     );
   }
@@ -133,7 +151,6 @@ class NeedsHistoryPage extends StatelessWidget {
   }
 }
 
-/// MENTOR COMPONENT: Banner Informasi (Reusable-style)
 class _NeedsHistoryBanner extends StatelessWidget {
   const _NeedsHistoryBanner();
 

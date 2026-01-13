@@ -1,5 +1,3 @@
-// lib/data/services/database_service.dart
-
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import 'package:uangku/data/impl/sqflite/arus_repository_impl.dart';
@@ -11,8 +9,8 @@ class DatabaseService {
 
   Database? _database;
   
-  // MENTOR NOTE: Konsisten di Versi 6
-  static const int _version = 6; 
+  // MENTOR NOTE: Naik ke Versi 7 untuk tabel snapshot
+  static const int _version = 7; 
   static const String _dbName = 'uangku_data.db';
 
   Future<Database> get database async {
@@ -57,20 +55,31 @@ class DatabaseService {
       );
     ''');
 
+    // MENTOR NOTE: Tabel baru untuk menjaga integritas riwayat
+    await _createSnapshotTable(db);
+
     await db.execute(ArusRepositoryImpl.createTableQuery);
+  }
+
+  Future<void> _createSnapshotTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE need_snapshots (
+        period TEXT NOT NULL,
+        need_id TEXT NOT NULL,
+        category_name TEXT NOT NULL,
+        budget_limit INTEGER NOT NULL,
+        PRIMARY KEY (period, need_id)
+      );
+    ''');
   }
 
   void _onUpgrade(Database db, int oldVersion, int newVersion) async {
     if (oldVersion < 6) {
-      // MENTOR NOTE: Cara aman migrasi adalah mengecek kolom sebelum menambahkannya
       var tableInfo = await db.rawQuery('PRAGMA table_info(arus)');
       bool hasNeedId = tableInfo.any((column) => column['name'] == 'need_id');
-
       if (!hasNeedId) {
         await db.execute("ALTER TABLE arus ADD COLUMN need_id TEXT");
       }
-
-      // Recreate tabel needs untuk memastikan struktur budgeting terbaru
       await db.execute("DROP TABLE IF EXISTS needs");
       await db.execute('''
         CREATE TABLE needs (
@@ -80,6 +89,11 @@ class DatabaseService {
           color_value INTEGER NOT NULL
         );
       ''');
+    }
+    
+    // MENTOR NOTE: Migrasi ke Versi 7
+    if (oldVersion < 7) {
+      await _createSnapshotTable(db);
     }
   }
 }

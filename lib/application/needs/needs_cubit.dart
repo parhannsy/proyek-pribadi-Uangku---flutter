@@ -14,11 +14,11 @@ class NeedsCubit extends Cubit<NeedsState> {
   Future<void> loadNeeds() async {
     try {
       emit(NeedsLoading());
-      
-      // MENTOR FIX: Ambil periode bulan dan tahun sekarang
       final now = DateTime.now();
+
+      // MENTOR NOTE: Sebelum ambil data, pastikan snapshot bulan ini sudah tercipta/terupdate
+      await _repository.syncSnapshot(now.month, now.year);
       
-      // Kirim parameter waktu ke repository agar filter dilakukan di level Database
       final needs = await _repository.getAllNeeds(
         month: now.month,
         year: now.year,
