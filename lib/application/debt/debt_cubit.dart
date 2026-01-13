@@ -7,46 +7,39 @@ import 'package:uangku/data/models/arus_model.dart';
 import 'package:uangku/data/models/enums/arus_type.dart';
 import 'package:uangku/data/repositories/debt_repository.dart';
 import 'package:uangku/data/repositories/arus_repository.dart';
-import 'package:uangku/application/services/notification_service.dart';
 
 class DebtCubit extends Cubit<DebtState> {
   final DebtRepository _repository;
   final ArusRepository _arusRepository;
-  final NotificationService _notificationService = NotificationService();
 
   DebtCubit(this._repository, this._arusRepository) : super(DebtInitial());
 
+  /// Helper Internal untuk menghitung skor prioritas
+  /// Semakin RENDAH skor, semakin TINGGI posisinya di daftar
   int _calculatePriorityScore(DebtModel debt, DateTime today) {
-    if (debt.isCompleted) return 1000;
+    if (debt.isCompleted) return 1000; // Paling bawah
 
     final nextDueDate = debt.nextDueDate;
     final diff = nextDueDate.difference(today).inDays;
 
+    // 1. Prioritas Utama: Nunggak dari bulan-bulan lalu (Overdue parah)
     final bool hasPastMonthDebt = debt.overdueTenorIndices.any((index) {
       DateTime d = DateTime(debt.dateBorrowed.year, debt.dateBorrowed.month + index, debt.dueDateDay);
       return d.isBefore(DateTime(today.year, today.month, 1));
     });
     if (hasPastMonthDebt) return 1;
+
+    // 2. Prioritas Kedua: Jatuh tempo HARI INI
     if (diff == 0) return 2;
+
+    // 3. Prioritas Ketiga: Sudah lewat tanggal di bulan berjalan (Nunggak baru)
     if (diff < 0) return 3;
+
+    // 4. Prioritas Keempat: Mepeet (Radius 7 hari ke depan)
     if (diff <= 7) return 4;
+
+    // 5. Prioritas Kelima: Aman (Masih jauh)
     return 5;
-  }
-
-  /// Helper untuk menjadwalkan notifikasi beruntun 7 hari (pukul 07:00)
-  Future<void> _scheduleNextReminder(DebtModel debt) async {
-    if (debt.isCompleted) {
-      await _notificationService.cancelNotificationSequence(debt.id.hashCode);
-      return;
-    }
-
-    await _notificationService.scheduleDebtReminderSequence(
-      debtId: debt.id,
-      borrower: debt.borrower,
-      purpose: debt.purpose,
-      amount: debt.amountPerTenor,
-      dueDate: debt.nextDueDate,
-    );
   }
 
   Future<void> loadActiveDebts() async {
@@ -57,10 +50,16 @@ class DebtCubit extends Cubit<DebtState> {
       final now = DateTime.now();
       final today = DateTime(now.year, now.month, now.day);
 
+      // MENTOR REVISION: Urutan Berdasarkan Skala Prioritas Risiko
       debts.sort((a, b) {
         int scoreA = _calculatePriorityScore(a, today);
         int scoreB = _calculatePriorityScore(b, today);
-        if (scoreA != scoreB) return scoreA.compareTo(scoreB);
+
+        if (scoreA != scoreB) {
+          return scoreA.compareTo(scoreB);
+        }
+
+        // Jika skor prioritas sama, urutkan berdasarkan tanggal terdekat
         return a.nextDueDate.compareTo(b.nextDueDate);
       });
 
@@ -75,12 +74,8 @@ class DebtCubit extends Cubit<DebtState> {
     try {
       emit(DebtOperationInProgress());
       await _repository.addDebt(debt);
-      
-      // Jadwalkan pengingat beruntun
-      await _scheduleNextReminder(debt);
-
-      await loadActiveDebts();
-      emit(const DebtOperationSuccess(message: 'Hutang berhasil ditambah & pengingat diaktifkan.')); 
+      await loadActiveDebts(); // Gunakan loadActiveDebts agar sorting terpanggil
+      emit(const DebtOperationSuccess(message: 'Data hutang berhasil ditambahkan.')); 
     } catch (e) {
       if (lastState is DebtLoadSuccess) emit(DebtLoadSuccess(debts: lastState.debts));
       emit(DebtOperationFailure("Gagal menambah hutang: ${e.toString()}"));
@@ -114,12 +109,13 @@ class DebtCubit extends Cubit<DebtState> {
       );
 
       final double totalAmount = (existingDebt.amountPerTenor * selectedTenors.length).toDouble();
+      final String tenorTags = selectedTenors.join(',');
       
       final newArus = Arus(
         type: ArusType.expense,
         category: 'Tagihan',
         amount: totalAmount,
-        description: 'Bayar cicilan ${existingDebt.borrower} [T:${selectedTenors.join(',')}]', 
+        description: 'Bayar cicilan ${existingDebt.borrower} [T:$tenorTags]', 
         timestamp: paymentDate, 
         isRecurring: false,
         debtId: debtId, 
@@ -130,11 +126,8 @@ class DebtCubit extends Cubit<DebtState> {
       await _repository.updateDebt(updatedDebt);
       await _arusRepository.createArus(newArus); 
 
-      // Perbarui rangkaian pengingat untuk tenor berikutnya
-      await _scheduleNextReminder(updatedDebt);
-
-      await loadActiveDebts(); 
-      emit(const DebtOperationSuccess(message: 'Pembayaran berhasil dicatat!'));
+      await loadActiveDebts(); // Refresh dengan sorting terbaru
+      emit(const DebtOperationSuccess(message: 'Pembayaran tenor berhasil dicatat!'));
     } catch (e) {
       if (lastState is DebtLoadSuccess) emit(DebtLoadSuccess(debts: lastState.debts));
       emit(DebtOperationFailure("Gagal memproses pembayaran: ${e.toString()}"));
@@ -146,11 +139,7 @@ class DebtCubit extends Cubit<DebtState> {
     try {
       emit(DebtOperationInProgress());
       await _repository.completeDebt(debtId); 
-      
-      // Batalkan semua sisa pengingat 7 hari
-      await _notificationService.cancelNotificationSequence(debtId.hashCode);
-
-      await loadActiveDebts();
+      await loadActiveDebts(); // Refresh dengan sorting terbaru
       emit(const DebtOperationSuccess(message: 'Hutang telah ditandai sebagai lunas.')); 
     } catch (e) {
       if (lastState is DebtLoadSuccess) emit(DebtLoadSuccess(debts: lastState.debts));

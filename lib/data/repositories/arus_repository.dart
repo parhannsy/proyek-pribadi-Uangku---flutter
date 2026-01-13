@@ -13,8 +13,17 @@ abstract class ArusRepository {
   /// Memperbarui data transaksi yang sudah ada
   Future<void> updateArus(Arus arus);
 
-  /// Menghapus transaksi berdasarkan ID (AUTOINCREMENT)
+  /// Menghapus transaksi berdasarkan ID
   Future<void> deleteArus(int id);
+
+  // ==========================================================
+  // Operasi Relasional (PENTING UNTUK FITUR HUTANG)
+  // ==========================================================
+
+  /// MENTOR ADDITION: Mengambil semua transaksi yang terkait dengan satu hutang tertentu.
+  /// Fungsi ini krusial agar bukti pembayaran tetap bisa ditemukan meskipun 
+  /// transaksi dilakukan di bulan yang berbeda dari bulan saat ini.
+  Future<List<Arus>> getArusByDebtId(String debtId);
 
   // ==========================================================
   // Operasi Dashboard (Fokus pada Periode Bulan/Tahun)
@@ -33,21 +42,19 @@ abstract class ArusRepository {
   // Operasi Laporan & Analisa (Fokus pada Range Tanggal)
   // ==========================================================
 
-  /// Mengambil data arus kas dalam rentang timestamp tertentu (milliseconds)
+  /// Mengambil data arus kas dalam rentang timestamp tertentu
   Future<List<Arus>> getArusByDateRange(int startDate, int endDate);
 
-  /// Menghitung total pengeluaran dalam rentang timestamp tertentu (milliseconds)
+  /// Menghitung total pengeluaran dalam rentang timestamp tertentu
   Future<double> getTotalExpenseByDateRange(int startDate, int endDate);
 
-  /// Menghitung total pemasukan dalam rentang timestamp tertentu (milliseconds)
+  /// Menghitung total pemasukan dalam rentang timestamp tertentu
   Future<double> getTotalIncomeByDateRange(int startDate, int endDate);
 
   // ==========================================================
   // Operasi Pemeliharaan (Maintenance)
   // ==========================================================
 
-  /// MENTOR ADDITION: Menghapus otomatis data yang sudah terlampau lama (Data Retention)
-  /// Digunakan untuk menjaga performa database agar tetap ringan.
-  /// [monthsLimit] menentukan berapa bulan data akan dipertahankan.
+  /// Menghapus otomatis data yang sudah terlampau lama (Data Retention)
   Future<void> deleteOldTransactions(int monthsLimit);
 }

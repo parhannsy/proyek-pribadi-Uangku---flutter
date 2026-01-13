@@ -70,6 +70,25 @@ class ArusRepositoryImpl implements ArusRepository {
   }
 
   // =========================================================
+  // LOGIKA RELASIONAL (PENCARIAN LINTAS PERIODE)
+  // =========================================================
+
+  @override
+  Future<List<Arus>> getArusByDebtId(String debtId) async {
+    final db = await _dbService.database;
+    
+    // MENTOR NOTE: Gunakan 'debt_id' sesuai dengan skema tabel di atas.
+    final List<Map<String, dynamic>> maps = await db.query(
+      tableName,
+      where: 'debt_id = ?',
+      whereArgs: [debtId],
+      orderBy: 'timestamp DESC',
+    );
+
+    return maps.map((map) => Arus.fromSqfliteMap(map)).toList();
+  }
+
+  // =========================================================
   // LOGIKA PERIODIK (BERDASARKAN BULAN & TAHUN)
   // =========================================================
 
@@ -165,14 +184,13 @@ class ArusRepositoryImpl implements ArusRepository {
   Future<void> deleteOldTransactions(int monthsLimit) async {
     final db = await _dbService.database;
     try {
-      // Menghapus data yang lebih lama dari X bulan dari sekarang
       await db.delete(
         tableName,
         where: "date(timestamp / 1000, 'unixepoch') < date('now', ?)",
         whereArgs: ['-$monthsLimit months'],
       );
     } catch (e) {
-      // Log error tanpa menghentikan aliran aplikasi utama
+      // Log error
     }
   }
 }

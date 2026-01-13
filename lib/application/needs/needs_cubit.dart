@@ -1,5 +1,3 @@
-// lib/application/needs/needs_cubit.dart
-
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:uangku/application/needs/needs_state.dart';
 import 'package:uangku/data/models/needs_model.dart';
@@ -11,12 +9,21 @@ class NeedsCubit extends Cubit<NeedsState> {
   NeedsCubit(this._repository) : super(NeedsInitial());
 
   // ===============================================
-  // 1. READ: Memuat semua data kebutuhan
+  // 1. READ: Memuat data kebutuhan (BULAN BERJALAN)
   // ===============================================
   Future<void> loadNeeds() async {
     try {
       emit(NeedsLoading());
-      final needs = await _repository.getAllNeeds();
+      
+      // MENTOR FIX: Ambil periode bulan dan tahun sekarang
+      final now = DateTime.now();
+      
+      // Kirim parameter waktu ke repository agar filter dilakukan di level Database
+      final needs = await _repository.getAllNeeds(
+        month: now.month,
+        year: now.year,
+      );
+      
       emit(NeedsLoadSuccess(needs: _listSort(needs)));
     } catch (e) {
       emit(NeedsLoadFailure(message: "Gagal memuat data: ${e.toString()}"));
@@ -30,32 +37,37 @@ class NeedsCubit extends Cubit<NeedsState> {
     try {
       await _repository.addNeed(need);
       
-      final updatedNeeds = await _repository.getAllNeeds();
+      // Refresh data dengan filter bulan sekarang
+      await loadNeeds();
       
-      emit(NeedsOperationSuccess(
-        message: "Kategori ${need.category} berhasil disimpan!",
-        needs: _listSort(updatedNeeds),
-      ));
+      final currentState = state;
+      if (currentState is NeedsLoadSuccess) {
+        emit(NeedsOperationSuccess(
+          message: "Kategori ${need.category} berhasil disimpan!",
+          needs: currentState.needs,
+        ));
+      }
     } catch (e) {
       emit(NeedsLoadFailure(message: "Gagal menambah kategori: ${e.toString()}"));
     }
   }
 
   // ===============================================
-  // 3. UPDATE: Memperbarui data kategori (BARU)
+  // 3. UPDATE: Memperbarui data kategori
   // ===============================================
   Future<void> updateNeed(NeedsModel need) async {
     try {
-      // MENTOR NOTE: Di level repository, pastikan query menggunakan ID untuk update
       await _repository.updateNeed(need);
       
-      // Ambil data terbaru setelah update agar UI tetap sinkron
-      final updatedNeeds = await _repository.getAllNeeds();
+      await loadNeeds();
       
-      emit(NeedsOperationSuccess(
-        message: "Kategori ${need.category} berhasil diperbarui!",
-        needs: _listSort(updatedNeeds),
-      ));
+      final currentState = state;
+      if (currentState is NeedsLoadSuccess) {
+        emit(NeedsOperationSuccess(
+          message: "Kategori ${need.category} berhasil diperbarui!",
+          needs: currentState.needs,
+        ));
+      }
     } catch (e) {
       emit(NeedsLoadFailure(message: "Gagal memperbarui kategori: ${e.toString()}"));
     }
@@ -67,12 +79,16 @@ class NeedsCubit extends Cubit<NeedsState> {
   Future<void> deleteNeed(String id) async {
     try {
       await _repository.deleteNeed(id);
-      final updatedNeeds = await _repository.getAllNeeds();
       
-      emit(NeedsOperationSuccess(
-        message: "Kategori berhasil dihapus",
-        needs: _listSort(updatedNeeds),
-      ));
+      await loadNeeds();
+      
+      final currentState = state;
+      if (currentState is NeedsLoadSuccess) {
+        emit(NeedsOperationSuccess(
+          message: "Kategori berhasil dihapus",
+          needs: currentState.needs,
+        ));
+      }
     } catch (e) {
       emit(NeedsLoadFailure(message: "Gagal menghapus kategori: ${e.toString()}"));
     }
@@ -82,7 +98,6 @@ class NeedsCubit extends Cubit<NeedsState> {
   // HELPER: Sorting (Private)
   // ===============================================
   List<NeedsModel> _listSort(List<NeedsModel> list) {
-    // Sorting berdasarkan nama kategori agar UI tidak lompat-lompat
     return list..sort((a, b) => a.category.toLowerCase().compareTo(b.category.toLowerCase()));
   }
 }

@@ -1,11 +1,11 @@
-// lib/presentation/features/piutang/pages/debt_detail_page.dart
-
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:uangku/application/debt/debt_cubit.dart'; 
 import 'package:uangku/application/debt/debt_state.dart'; 
 import 'package:uangku/application/flow/arus_cubit.dart'; 
+import 'package:uangku/data/models/arus_model.dart';
 import 'package:uangku/data/models/debt_model.dart'; 
+import 'package:uangku/data/repositories/arus_repository.dart';
 import 'package:uangku/presentation/features/piutang/widgets/add_payment_form_modal.dart';
 import 'package:uangku/presentation/features/piutang/pages/payment_receipt_page.dart'; 
 import 'package:uangku/presentation/shared/theme/app_colors.dart';
@@ -21,6 +21,10 @@ class DebtDetailPage extends StatelessWidget {
     super.key,
     required this.debt,
   });
+
+  // ==========================================================
+  // LOGIKA NAVIGASI & PENCARIAN DATA
+  // ==========================================================
   
   void _showPaymentModal(BuildContext context, int tenorNumber, DebtModel currentDebt) {
     final debtCubit = context.read<DebtCubit>(); 
@@ -41,44 +45,60 @@ class DebtDetailPage extends StatelessWidget {
     );
   }
 
-  void _navigateToReceipt(BuildContext context, DebtModel debt, int tenorNumber) {
-    final aruses = context.read<ArusCubit>().state.aruses;
-    
-    final transaction = aruses.firstWhereOrNull((a) {
-      if (a.debtId != debt.id) return false;
-      final description = a.description ?? '';
-      
-      final match = RegExp(r'\[T:(.*?)\]').firstMatch(description);
-      if (match != null) {
-        final tenorsString = match.group(1) ?? '';
-        final listTenor = tenorsString.split(',');
-        return listTenor.contains(tenorNumber.toString());
-      }
+  /// MENTOR FIX: Fungsi navigasi yang cerdas dengan pengecekan database langsung.
+  Future<void> _navigateToReceipt(BuildContext context, DebtModel debt, int tenorNumber) async {
+    // 1. Cek di Memory (ArusCubit State)
+    final arusesInState = context.read<ArusCubit>().state.aruses;
+    Arus? transaction = arusesInState.firstWhereOrNull((a) => _isMatch(a, debt.id, tenorNumber));
 
-      if (description.contains('Bulan: $tenorNumber')) {
-        return true;
+    // 2. Jika tidak ada di State (kemungkinan beda bulan), tarik dari Database
+    if (transaction == null) {
+      try {
+        final arusRepo = context.read<ArusRepository>();
+        final allRelatedArus = await arusRepo.getArusByDebtId(debt.id);
+        transaction = allRelatedArus.firstWhereOrNull((a) => _isMatch(a, debt.id, tenorNumber));
+      } catch (e) {
+        debugPrint("Error fetching deep data: $e");
       }
-      return false;
-    });
+    }
 
+    // 3. Eksekusi Navigasi
     if (transaction != null) {
+      if (!context.mounted) return;
       Navigator.push(
         context,
         MaterialPageRoute(
           builder: (context) => PaymentReceiptPage(
-            transaction: transaction,
+            transaction: transaction!,
             tenorNumber: tenorNumber,
           ),
         ),
       );
     } else {
+      if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Bukti pembayaran tidak ditemukan. Pastikan data Arus tersedia.'),
+          content: Text('Bukti pembayaran tidak ditemukan di database. Pastikan data tersimpan dengan benar.'),
           backgroundColor: AppColors.negativeRed,
         ),
       );
     }
+  }
+
+  /// Helper untuk validasi kecocokan tenor dalam deskripsi Arus
+  bool _isMatch(Arus a, String debtId, int tenorNumber) {
+    if (a.debtId != debtId) return false;
+    final description = a.description ?? '';
+    
+    // Pola modern [T:1,2,3]
+    final match = RegExp(r'\[T:(.*?)\]').firstMatch(description);
+    if (match != null) {
+      final listTenor = match.group(1)!.split(',').map((e) => e.trim());
+      return listTenor.contains(tenorNumber.toString());
+    }
+    
+    // Pola legacy
+    return description.contains('Bulan: $tenorNumber');
   }
 
   DateTime? _getCompletionDate(BuildContext context, String debtId) {
@@ -90,6 +110,10 @@ class DebtDetailPage extends StatelessWidget {
     
     return lastTransaction?.timestamp;
   }
+
+  // ==========================================================
+  // UI BUILDER
+  // ==========================================================
 
   @override
   Widget build(BuildContext context) {
@@ -137,7 +161,6 @@ class DebtDetailPage extends StatelessWidget {
                 
                 const SizedBox(height: 24),
 
-                // 1. Banner Info Navigasi (Hanya muncul jika BELUM LUNAS)
                 if (!currentDebt.isCompleted) ...[
                   AnimatedSlider(
                     index: 1,
@@ -146,7 +169,6 @@ class DebtDetailPage extends StatelessWidget {
                   const SizedBox(height: 24),
                 ],
                 
-                // 2. Judul Dinamis berdasarkan status Lunas
                 AnimatedSlider(
                   index: 2,
                   child: Text(
@@ -160,7 +182,6 @@ class DebtDetailPage extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
                 
-                // 3. List Tenor
                 ListView.builder(
                   shrinkWrap: true,
                   padding: EdgeInsets.zero,

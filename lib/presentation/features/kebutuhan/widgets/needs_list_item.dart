@@ -1,5 +1,3 @@
-// lib/presentation/features/kebutuhan/widgets/needs_list_item.dart
-
 // ignore_for_file: deprecated_member_use
 
 import 'package:flutter/material.dart';
@@ -12,7 +10,7 @@ import 'package:uangku/utils/number_formatter.dart';
 class NeedsListItem extends StatelessWidget {
   final NeedsModel needs;
   final VoidCallback? onTap;
-  final VoidCallback? onEdit; 
+  final VoidCallback? onEdit;
 
   const NeedsListItem({
     super.key,
@@ -26,32 +24,36 @@ class NeedsListItem extends StatelessWidget {
     return Dismissible(
       key: Key(needs.id),
       // MENTOR NOTE: Swipe Kanan ke Kiri = Hapus, Kiri ke Kanan = Edit
-      direction: DismissDirection.horizontal, 
-      
+      direction: DismissDirection.horizontal,
       confirmDismiss: (direction) async {
         if (direction == DismissDirection.startToEnd) {
           // LOGIKA EDIT: Jalankan callback dan gagalkan penghapusan widget
           if (onEdit != null) onEdit!();
-          return false; 
+          return false;
         } else {
           // LOGIKA HAPUS: Konfirmasi Dialog
           return await showDialog(
             context: context,
             builder: (context) => AlertDialog(
               backgroundColor: AppColors.surfaceColor,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              title: const Text("Hapus Anggaran?", style: TextStyle(color: Colors.white)),
-              content: Text("Apakah Anda yakin ingin menghapus kategori '${needs.category}'?", 
-                style: const TextStyle(color: AppColors.textSecondary)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16)),
+              title: const Text("Hapus Anggaran?",
+                  style: TextStyle(color: Colors.white)),
+              content: Text(
+                  "Apakah Anda yakin ingin menghapus kategori '${needs.category}'?",
+                  style: const TextStyle(color: AppColors.textSecondary)),
               actions: [
                 TextButton(
-                  onPressed: () => Navigator.pop(context, false), 
-                  child: const Text("Batal", style: TextStyle(color: Colors.white54))
-                ),
+                    onPressed: () => Navigator.pop(context, false),
+                    child: const Text("Batal",
+                        style: TextStyle(color: Colors.white54))),
                 TextButton(
-                  onPressed: () => Navigator.pop(context, true), 
-                  child: const Text("Hapus", style: TextStyle(color: AppColors.negativeRed, fontWeight: FontWeight.bold))
-                ),
+                    onPressed: () => Navigator.pop(context, true),
+                    child: const Text("Hapus",
+                        style: TextStyle(
+                            color: AppColors.negativeRed,
+                            fontWeight: FontWeight.bold))),
               ],
             ),
           );
@@ -59,6 +61,8 @@ class NeedsListItem extends StatelessWidget {
       },
       onDismissed: (direction) {
         if (direction == DismissDirection.endToStart) {
+          // MENTOR NOTE: Cubit akan otomatis melakukan loadNeeds() 
+          // untuk bulan berjalan setelah proses delete selesai.
           context.read<NeedsCubit>().deleteNeed(needs.id);
         }
       },
@@ -75,7 +79,9 @@ class NeedsListItem extends StatelessWidget {
           children: [
             Icon(Icons.edit_note, color: Colors.white, size: 28),
             SizedBox(width: 8),
-            Text("Ubah", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            Text("Ubah",
+                style:
+                    TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
           ],
         ),
       ),
@@ -91,7 +97,9 @@ class NeedsListItem extends StatelessWidget {
         child: const Row(
           mainAxisAlignment: MainAxisAlignment.end,
           children: [
-            Text("Hapus", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            Text("Hapus",
+                style:
+                    TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
             SizedBox(width: 8),
             Icon(Icons.delete_sweep, color: Colors.white, size: 28),
           ],
@@ -159,7 +167,8 @@ class NeedsListItem extends StatelessWidget {
               ),
               Text(
                 "Total Alokasi: ${NumberFormatter.formatRupiah(needs.budgetLimit)}",
-                style: const TextStyle(color: AppColors.textSecondary, fontSize: 11),
+                style: const TextStyle(
+                    color: AppColors.textSecondary, fontSize: 11),
               ),
             ],
           ),
@@ -178,7 +187,9 @@ class NeedsListItem extends StatelessWidget {
             Text(
               isOver ? "overlimit" : "terpakai",
               style: TextStyle(
-                color: isOver ? AppColors.negativeRed.withOpacity(0.7) : AppColors.textSecondary,
+                color: isOver
+                    ? AppColors.negativeRed.withOpacity(0.7)
+                    : AppColors.textSecondary,
                 fontSize: 10,
               ),
             ),
@@ -210,7 +221,8 @@ class NeedsListItem extends StatelessWidget {
               borderRadius: BorderRadius.circular(10),
               boxShadow: [
                 BoxShadow(
-                  color: (isOver ? AppColors.negativeRed : needs.color).withOpacity(0.3),
+                  color: (isOver ? AppColors.negativeRed : needs.color)
+                      .withOpacity(0.3),
                   blurRadius: 4,
                   offset: const Offset(0, 2),
                 ),
@@ -227,11 +239,12 @@ class NeedsListItem extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        _buildSmallLabel("Terpakai: ${NumberFormatter.formatRupiah(needs.usedAmount)}"),
         _buildSmallLabel(
-          isOver 
-            ? "Over: ${NumberFormatter.formatRupiah(needs.remainingAmount.abs())}"
-            : "Sisa: ${NumberFormatter.formatRupiah(needs.remainingAmount)}",
+            "Terpakai: ${NumberFormatter.formatRupiah(needs.usedAmount)}"),
+        _buildSmallLabel(
+          isOver
+              ? "Over: ${NumberFormatter.formatRupiah(needs.remainingAmount.abs())}"
+              : "Sisa: ${NumberFormatter.formatRupiah(needs.remainingAmount)}",
           color: isOver ? AppColors.negativeRed : AppColors.textSecondary,
         ),
       ],
@@ -242,7 +255,7 @@ class NeedsListItem extends StatelessWidget {
     return Text(
       text,
       style: TextStyle(
-        fontSize: 11, 
+        fontSize: 11,
         color: color,
         fontWeight: FontWeight.w500,
       ),

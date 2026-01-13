@@ -1,5 +1,3 @@
-// lib/presentation/features/kebutuhan/pages/kebutuhan_page.dart
-
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -10,6 +8,8 @@ import 'package:uangku/presentation/features/kebutuhan/widgets/needs_list_item.d
 import 'package:uangku/presentation/features/kebutuhan/widgets/add_needs_modal.dart';
 import 'package:uangku/presentation/shared/theme/app_colors.dart';
 import 'package:uangku/presentation/shared/widgets/animated_slider.dart';
+
+import 'needs_history_page.dart';
 
 class KebutuhanPage extends StatefulWidget {
   const KebutuhanPage({super.key});
@@ -33,6 +33,15 @@ class _KebutuhanPageState extends State<KebutuhanPage> {
       builder: (modalContext) => AddNeedsModal(needs: needs),
     );
   }
+
+  /// MENTOR NOTE: Fungsi untuk navigasi ke halaman riwayat.
+  /// Pastikan kamu membuat halamannya nanti dan mengganti route-nya.
+  void _navigateToHistory() {
+  Navigator.push(
+    context, 
+    MaterialPageRoute(builder: (_) => const NeedsHistoryPage())
+  );
+}
 
   @override
   Widget build(BuildContext context) {
@@ -79,22 +88,38 @@ class _KebutuhanPageState extends State<KebutuhanPage> {
               color: AppColors.accentGold,
               backgroundColor: AppColors.surfaceColor,
               child: SingleChildScrollView(
-                physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+                physics: const AlwaysScrollableScrollPhysics(
+                    parent: BouncingScrollPhysics()),
                 child: Padding(
-                  padding: const EdgeInsets.all(16.0),
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // 1. HEADER
-                      const AnimatedSlider(
+                      // 1. HEADER DENGAN TOMBOL RIWAYAT
+                      AnimatedSlider(
                         index: 0,
-                        child: Text(
-                          'Alokasi Anggaran',
-                          style: TextStyle(
-                            color: AppColors.textPrimary,
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                          ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              'Alokasi Anggaran',
+                              style: TextStyle(
+                                color: AppColors.textPrimary,
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            // MENTOR FIX: Menambahkan tombol riwayat di pojok kanan atas
+                            IconButton(
+                              onPressed: _navigateToHistory,
+                              icon: const Icon(
+                                Icons.history_rounded,
+                                color: AppColors.accentGold,
+                                size: 28,
+                              ),
+                              tooltip: 'Riwayat Penggunaan',
+                            ),
+                          ],
                         ),
                       ),
                       const SizedBox(height: 20),
@@ -110,14 +135,16 @@ class _KebutuhanPageState extends State<KebutuhanPage> {
                                 sections: needsData.map((e) {
                                   final totalBudget = needsData.fold<double>(
                                       0, (sum, item) => sum + item.budgetLimit);
-                                  final porsiPersen = (e.budgetLimit / totalBudget) * 100;
+                                  final porsiPersen =
+                                      (e.budgetLimit / totalBudget) * 100;
 
                                   return PieChartSectionData(
                                     color: e.color,
                                     value: e.budgetLimit.toDouble(),
                                     radius: 55,
                                     showTitle: false,
-                                    badgeWidget: _buildChartBadge(e, porsiPersen),
+                                    badgeWidget:
+                                        _buildChartBadge(e, porsiPersen),
                                     badgePositionPercentageOffset: 1.35,
                                   );
                                 }).toList(),
@@ -134,7 +161,6 @@ class _KebutuhanPageState extends State<KebutuhanPage> {
                           child: _buildLegend(needsData),
                         ),
                       ] else ...[
-                        // MENTOR FIX: Empty state grafik sekarang masuk ke alur animasi
                         AnimatedSlider(
                           index: 1,
                           child: _buildEmptyStateGrafik(),
@@ -169,15 +195,18 @@ class _KebutuhanPageState extends State<KebutuhanPage> {
                           padding: EdgeInsets.zero,
                           physics: const NeverScrollableScrollPhysics(),
                           itemCount: needsData.length,
-                          separatorBuilder: (_, __) => const SizedBox(height: 12),
+                          separatorBuilder: (_, __) => const SizedBox(height: 1),
                           itemBuilder: (context, index) {
                             final item = needsData[index];
                             return AnimatedSlider(
-                              index: index + 4, // Melanjutkan index animasi
+                              index: index + 4,
                               child: NeedsListItem(
                                 needs: item,
-                                onEdit: () => _showNeedsModal(context, needs: item),
-                                onTap: () {},
+                                onEdit: () =>
+                                    _showNeedsModal(context, needs: item),
+                                onTap: () {
+                                  // MENTOR NOTE: Bisa juga diarahkan ke riwayat spesifik kategori ini
+                                },
                               ),
                             );
                           },
@@ -216,7 +245,8 @@ class _KebutuhanPageState extends State<KebutuhanPage> {
       ),
       child: Text(
         "${percentage.toStringAsFixed(0)}%",
-        style: TextStyle(color: e.color, fontSize: 10, fontWeight: FontWeight.bold),
+        style: TextStyle(
+            color: e.color, fontSize: 10, fontWeight: FontWeight.bold),
       ),
     );
   }
@@ -225,18 +255,23 @@ class _KebutuhanPageState extends State<KebutuhanPage> {
     return Wrap(
       spacing: 16,
       runSpacing: 10,
-      children: data.map((needs) => Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 10, height: 10,
-            decoration: BoxDecoration(color: needs.color, shape: BoxShape.circle),
-          ),
-          const SizedBox(width: 8),
-          Text(needs.category,
-              style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
-        ],
-      )).toList(),
+      children: data
+          .map((needs) => Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 10,
+                    height: 10,
+                    decoration: BoxDecoration(
+                        color: needs.color, shape: BoxShape.circle),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(needs.category,
+                      style: const TextStyle(
+                          color: AppColors.textSecondary, fontSize: 12)),
+                ],
+              ))
+          .toList(),
     );
   }
 
@@ -245,7 +280,8 @@ class _KebutuhanPageState extends State<KebutuhanPage> {
       child: Column(
         children: [
           const SizedBox(height: 20),
-          Icon(Icons.pie_chart_outline, size: 64, color: Colors.white.withOpacity(0.1)),
+          Icon(Icons.pie_chart_outline,
+              size: 64, color: Colors.white.withOpacity(0.1)),
           const SizedBox(height: 16),
           const Text("Grafik alokasi belum tersedia",
               style: TextStyle(color: AppColors.textSecondary)),
