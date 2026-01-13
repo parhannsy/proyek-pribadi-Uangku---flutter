@@ -1,5 +1,3 @@
-// lib/presentation/features/arus/pages/arus_keuangan_page.dart
-
 // ignore_for_file: deprecated_member_use, camel_case_types
 
 import 'package:flutter/material.dart';
@@ -13,6 +11,7 @@ import 'package:uangku/application/debt/debt_state.dart';
 import 'package:uangku/data/models/enums/arus_type.dart' as flow_enum;
 import 'package:uangku/data/models/arus_model.dart';
 import 'package:uangku/presentation/features/arus/widgets/transaction_list_item.dart';
+import 'package:uangku/presentation/features/arus/widgets/arus_detail_sheet.dart'; // MENTOR ADD
 import 'package:uangku/presentation/shared/theme/app_colors.dart';
 import 'package:uangku/utils/number_formatter.dart';
 import 'package:uangku/presentation/shared/widgets/animated_slider.dart';
@@ -74,6 +73,26 @@ class _ArusKeuanganPageState extends State<ArusKeuanganPage> {
 
   bool get _isPrevDisabled =>
       _selectedDate.isBefore(DateTime(_today.year, _today.month - 5));
+
+  // MENTOR ADD: Fungsi untuk menampilkan detail
+  void _showTransactionDetail(BuildContext context, Arus transaction) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => ArusDetailSheet(
+        arus: transaction,
+        onDelete: () {
+          Navigator.pop(context); // Tutup sheet
+          context.read<ArusCubit>().deleteTransaction(transaction.id!);
+        },
+        onEdit: () {
+          Navigator.pop(context);
+          // TODO: Implementasi navigasi ke form edit jika diperlukan
+        },
+      ),
+    );
+  }
 
   void _showAddTransactionModal(BuildContext context) {
     final arusCubit = context.read<ArusCubit>();
@@ -167,7 +186,6 @@ class _ArusKeuanganPageState extends State<ArusKeuanganPage> {
                         ),
                         const SizedBox(height: 20),
                         
-                        // Navigation Periode
                         AnimatedSlider(
                           index: 1,
                           child: Row(
@@ -207,7 +225,6 @@ class _ArusKeuanganPageState extends State<ArusKeuanganPage> {
                         ),
                         const SizedBox(height: 20),
                         
-                        // Summary Card & Balance Status
                         AnimatedSlider(
                           index: 2,
                           child: _buildSummaryCard(totalIncome, totalExpense),
@@ -218,7 +235,6 @@ class _ArusKeuanganPageState extends State<ArusKeuanganPage> {
                         ),
                         const SizedBox(height: 20),
                         
-                        // Tab Toggle
                         AnimatedSlider(
                           index: 4,
                           child: _buildTabToggle(context, currentActiveTab),
@@ -246,7 +262,6 @@ class _ArusKeuanganPageState extends State<ArusKeuanganPage> {
                             padding: const EdgeInsets.symmetric(horizontal: 16),
                             child: Column(
                               children: [
-                                // MENTOR NOTE: Header tabel di dalam PageView juga diberi animasi
                                 const AnimatedSlider(
                                   index: 5,
                                   child: _buildTableHeader(),
@@ -393,11 +408,16 @@ class _ArusKeuanganPageState extends State<ArusKeuanganPage> {
 
     return Column(
       children: List.generate(currentList.length, (index) {
+        final transaction = currentList[index]; // MENTOR ADD
         return AnimatedSlider(
-          index: index + 6, // Melanjutkan urutan animasi dari header
-          child: TransactionListItem(
-            transaction: currentList[index],
-            isIncome: currentActiveTab == TransactionType.income,
+          index: index + 6,
+          // MENTOR FIX: Bungkus dengan InkWell untuk fitur Detail
+          child: InkWell(
+            onTap: () => _showTransactionDetail(context, transaction),
+            child: TransactionListItem(
+              transaction: transaction,
+              isIncome: currentActiveTab == TransactionType.income,
+            ),
           ),
         );
       }),
